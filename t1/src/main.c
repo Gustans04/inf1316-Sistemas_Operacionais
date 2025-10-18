@@ -10,8 +10,6 @@
 
 #include "aux.h"
 
-#define NUM_APP 5
-
 int main() 
 {
     int pid_list[NUM_APP];

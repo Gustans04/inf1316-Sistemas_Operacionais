@@ -4,6 +4,9 @@
 // Códigos IPC para memória compartilhada
 #define IPC_CODE  1234
 
+// Número de aplicações
+#define NUM_APP 5
+
 // Dispositivos
 typedef enum{
     D1,

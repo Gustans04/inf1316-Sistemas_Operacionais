@@ -12,7 +12,7 @@
 
 #include "aux.h"
 
-static InfoProcesso processos[5];
+static InfoProcesso processos[NUM_APP];
 
 void ctrlC_handler(int signum);
 void print_status(void);
@@ -99,7 +99,7 @@ void read_process_info(void) {
     }
 
     // copia os dados da memória compartilhada para o array local
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < NUM_APP; i++) {
         processos[i] = shm_processos[i];
     }
 
