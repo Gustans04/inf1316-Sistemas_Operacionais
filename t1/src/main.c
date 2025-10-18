@@ -10,29 +10,36 @@ int main()
     int pid_list[5];
     int inter_pid;
 
+    // Lista de processos esperando pelos dispositivos
+    int esperandoD1[5];
+    int esperandoD2[5];
+
     if ((inter_pid = fork()) < 0) {
-        perror("Fork failed");
+        perror("Fork falhou!");
         exit(EXIT_FAILURE);
     } else if (inter_pid == 0) {
-        // InterController process
-        printf("InterController process with PID %d\n", getpid());
+        // InterController 
+        printf("InterController com PID %d\n", getpid());
         exit(0);
     }
 
     for (int i = 0; i < 5; i++) {
         pid_list[i] = fork();
         if (pid_list[i] < 0) {
-            perror("Fork failed");
+            perror("Fork falhou!");
             exit(EXIT_FAILURE);
         } else if (pid_list[i] == 0) {
-            // Child process
-            printf("Child process %d with PID %d\n", i + 1, getpid());
-            exit(0);
+            // Applications
+            execl("./application", "", NULL);
+            fprintf(stderr, "Erro ao rodar a Application");
+            exit(-1);
         }
     }
 
-    // Kernel process
-    printf("Kernel process with PID %d\n", getpid());
+    // Kernel
+    printf("Kernel com PID %d\n", getpid());
+
+    for(int i = 0; i < 6; i++) wait(NULL);
     
     return 0;
 }
