@@ -56,7 +56,7 @@ dkms.conf
 
 # situational files
 *main
-*aplication
+*application
 *FIFO_IRQ
 *intercontroller
 *FIFO_SYSCALL
