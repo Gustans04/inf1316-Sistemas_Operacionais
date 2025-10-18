@@ -6,8 +6,9 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "aux.h"
 #include <time.h>
+
+#include "aux.h"
 
 typedef enum {
     PRONTO,
@@ -20,7 +21,7 @@ typedef struct {
     pid_t pid;
     int pc;
     EstadoProcesso estado;
-    int dispositivo; // 0: D1, 1: D2
+    Dispositivos dispositivo; // 0: D1, 1: D2
     char operacao[2]; // R/W/X
     int qtd_acessos[2]; // D1, D2
     int executando;

@@ -1,5 +1,3 @@
-#include "aux.h"
-
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -7,6 +5,8 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <time.h>
+
+#include "aux.h"
 
 // Número máximo de iterações
 #define MAX 5
@@ -22,6 +22,18 @@ int main()
     Operacoes Op; // Equivale à operação 
 
     printf("\nApplication com PID %d inicializado\n", getpid());
+
+    if (criaFIFO("FIFO_SYSCALL") < 0) {
+        perror("Falha ao criar FIFO");
+        exit(EXIT_FAILURE);
+    }
+
+    int fifo_syscall;
+    // A Application irá escrever na FIFO de SYSCALLs
+    if (abreFIFO(&fifo_syscall, "FIFO_SYSCALL", O_WRONLY) < 0) {
+        perror("Falha ao abrir FIFO de SYSCALLs");
+        exit(EXIT_FAILURE);
+    }
 
     while (PC < MAX)
     {
