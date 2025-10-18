@@ -2,13 +2,17 @@
 #define AUX_FUNC
 
 // Dispositivos
-#define D1 0
-#define D2 1
+typedef enum{
+    D1,
+    D2
+} Dispositivos;
 
 // Operações
-#define R 0
-#define W 1
-#define X 2
+typedef enum{
+    R,
+    W,
+    X
+} Operacoes;
 
 int criaFIFO(const char* nomeFIFO);
 int abreFIFO(int* fifo, const char* nomeFIFO, int modo);

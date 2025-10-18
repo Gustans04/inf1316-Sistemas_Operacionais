@@ -18,8 +18,8 @@ int main()
     int PC = 0; // Contador de iterações (Program Counter)
 
     int aux; // Auxiliar para decidir sobre as syscalls, os dispositivos e as operações
-    int Dx; // Equivale ao dispositivo 
-    int Op; // Equivale à operação 
+    Dispositivos Dx; // Equivale ao dispositivo 
+    Operacoes Op; // Equivale à operação 
 
     printf("\nApplication com PID %d inicializado\n", getpid());
 
