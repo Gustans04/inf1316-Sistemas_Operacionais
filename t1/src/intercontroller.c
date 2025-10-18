@@ -9,9 +9,33 @@
 #include "aux.h"
 #include <time.h>
 
+typedef enum {
+    PRONTO,
+    EXECUTANDO,
+    BLOQUEADO,
+    TERMINADO
+} EstadoProcesso;
+
+typedef struct {
+    pid_t pid;
+    int pc;
+    EstadoProcesso estado;
+    int dispositivo; // 0: D1, 1: D2
+    char operacao[2]; // R/W/X
+    int qtd_acessos[2]; // D1, D2
+    int executando;
+} InfoProcesso;
+
+static InfoProcesso processos[5];
+
+void ctrlC_handler(int signum);
+void print_status(void);
+
 int main(void) {
     int fifo;
     srand(time(NULL));
+
+    signal(SIGINT, ctrlC_handler);
 
     if (criaFIFO("FIFO_IRQ") < 0) {
         perror("Falha ao criar FIFO");
@@ -40,4 +64,33 @@ int main(void) {
 
     close(fifo);
     return 0;
+}
+
+void ctrlC_handler(int signum) {
+    printf("\n=== InterController PAUSADO ===\n");
+    print_status();
+    printf("=== InterController CONTINUADO ===\n");
+    signal(SIGINT, ctrlC_handler);
+}
+
+void print_status(void) {
+    printf("PID\tPC\tESTADO\t\tDISPOSITIVO\tOPERAÇÃO\tEXECUTANDO\tD1\tD2\n");
+    for (int i = 0; i < 5; i++) {
+        printf("%d\t%d\t", processos[i].pid, processos[i].pc);
+        switch (processos[i].estado) {
+            case PRONTO: printf("PRONTO\t\t"); break;
+            case EXECUTANDO: printf("EXECUTANDO\t"); break;
+            case BLOQUEADO: printf("BLOQUEADO\t"); break;
+            case TERMINADO: printf("TERMINADO\t"); break;
+        }
+        if (processos[i].estado == BLOQUEADO) {
+            printf("%d\t\t%s\t", processos[i].dispositivo, processos[i].operacao);
+        } else {
+            printf("-\t\t-\t");
+        }
+        printf("\t%d\t\t%d\t%d\n", 
+               processos[i].qtd_acessos[0], 
+               processos[i].qtd_acessos[1],
+               processos[i].executando);
+    }
 }
