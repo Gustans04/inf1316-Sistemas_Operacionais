@@ -26,7 +26,9 @@ int main()
     } else if (inter_pid == 0) {
         // InterController 
         printf("InterController com PID %d\n", getpid());
-        exit(0);
+        execl("./intercontroller", "", NULL);
+        fprintf(stderr, "Erro ao rodar o InterController\n");
+        exit(EXIT_FAILURE);
     }
 
     for (int i = 0; i < NUM_APP; i++) {
@@ -37,7 +39,7 @@ int main()
         } else if (pid_list[i] == 0) {
             // Applications
             execl("./application", "", NULL);
-            fprintf(stderr, "Erro ao rodar a Application");
+            fprintf(stderr, "Erro ao rodar a Application\n");
             exit(EXIT_FAILURE);
         }
     }
