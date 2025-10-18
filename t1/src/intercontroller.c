@@ -38,7 +38,7 @@ int main(void) {
         usleep(500000); // Sleep por 500 milissegundos
         write(fifo, "IRQ0", 5); // Simula uma IRQ0
 
-        int valor_aleatorio = rand() % 1000; // Gera um valor aleatório entre 1 e 1000
+        int valor_aleatorio = rand() % 1000; // Gera um valor aleatório entre 0 e 999
 
         if (valor_aleatorio < 100) { // 10% de chance de gerar uma IRQ1
             write(fifo, "IRQ1", 5); // Simula uma IRQ1
