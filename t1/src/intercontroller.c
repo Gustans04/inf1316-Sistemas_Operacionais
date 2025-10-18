@@ -96,9 +96,9 @@ void print_status(void) {
             printf("-\t\t-\t");
         }
         printf("\t%d\t\t%d\t%d\n", 
+               processos[i].executando,
                processos[i].qtd_acessos[0], 
-               processos[i].qtd_acessos[1],
-               processos[i].executando);
+               processos[i].qtd_acessos[1]);
     }
 }
 
