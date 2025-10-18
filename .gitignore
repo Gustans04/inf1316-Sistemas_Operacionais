@@ -59,6 +59,7 @@ dkms.conf
 *aplication
 *FIFO_IRQ
 *intercontroller
+*FIFO_SYSCALL
 
 # IDEs and editors
 *.vscode/
