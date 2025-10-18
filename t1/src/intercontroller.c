@@ -12,25 +12,6 @@
 
 #include "aux.h"
 
-#define IPC_CODE  1234
-
-typedef enum {
-    PRONTO,
-    EXECUTANDO,
-    BLOQUEADO,
-    TERMINADO
-} EstadoProcesso;
-
-typedef struct {
-    pid_t pid;
-    int pc;
-    EstadoProcesso estado;
-    Dispositivos dispositivo; // 0: D1, 1: D2
-    char operacao[2]; // R/W/X
-    int qtd_acessos[2]; // D1, D2
-    int executando;
-} InfoProcesso;
-
 static InfoProcesso processos[5];
 
 void ctrlC_handler(int signum);
@@ -124,5 +105,4 @@ void read_process_info(void) {
 
     // desconecta a memória compartilhada
     shmdt(shm_processos);
-    shmctl (segmento, IPC_RMID, 0);
 }
