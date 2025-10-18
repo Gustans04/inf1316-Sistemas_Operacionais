@@ -7,8 +7,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
 
 #include "aux.h"
+
+static InfoProcesso processos[NUM_APP];
 
 int main() 
 {
@@ -18,6 +22,20 @@ int main()
     // Lista de processos esperando pelos dispositivos
     int esperandoD1[NUM_APP];
     int esperandoD2[NUM_APP];
+    
+    // aloca a memória compartilhada
+    int segmento = shmget (IPC_CODE, sizeof (processos), IPC_CREAT | S_IRUSR | S_IWUSR);
+    if (segmento == -1) {
+        perror("shmget falhou");
+        exit(EXIT_FAILURE);
+    }
+
+    // conecta a memória compartilhada
+    InfoProcesso* shm_processos = (InfoProcesso*) shmat (segmento, 0, 0);
+    if (shm_processos == (InfoProcesso*) -1) {
+        perror("shmat falhou");
+        exit(EXIT_FAILURE);
+    }
 
     if ((inter_pid = fork()) < 0) {
         perror("Fork falhou!");
