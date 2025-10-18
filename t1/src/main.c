@@ -12,8 +12,6 @@
 
 #include "aux.h"
 
-static InfoProcesso processos[NUM_APP];
-
 int main() 
 {
     int pid_list[NUM_APP];
@@ -24,7 +22,7 @@ int main()
     int esperandoD2[NUM_APP];
     
     // aloca a memória compartilhada
-    int segmento = shmget (IPC_CODE, sizeof (processos), IPC_CREAT | S_IRUSR | S_IWUSR);
+    int segmento = shmget (IPC_CODE, sizeof (InfoProcesso) * NUM_APP, IPC_CREAT | S_IRUSR | S_IWUSR);
     if (segmento == -1) {
         perror("shmget falhou");
         exit(EXIT_FAILURE);
@@ -58,6 +56,14 @@ int main()
             char app_name[20];
             snprintf(app_name, sizeof(app_name), "application%d", i);
             app_name[12] = '\0';
+
+            // Adiciona o pid da Application na struct de memória compartilhada
+            shm_processos[i].pid = getpid();
+            shm_processos[i].estado = PRONTO;
+            shm_processos[i].dispositivo = -1;
+            shm_processos[i].operacao = -1;
+            shm_processos[i].executando = 1;
+            memset(shm_processos[i].qtd_acessos, 0, sizeof(shm_processos[i].qtd_acessos));
 
             execl("./application", app_name, NULL);
             fprintf(stderr, "Erro ao rodar a Application\n");
