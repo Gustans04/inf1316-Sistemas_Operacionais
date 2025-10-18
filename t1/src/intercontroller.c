@@ -7,8 +7,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
 
 #include "aux.h"
+
+#define IPC_CODE  1234
 
 typedef enum {
     PRONTO,
@@ -31,6 +35,7 @@ static InfoProcesso processos[5];
 
 void ctrlC_handler(int signum);
 void print_status(void);
+void read_process_info(void);
 
 int main(void) {
     int fifo;
@@ -69,6 +74,7 @@ int main(void) {
 
 void ctrlC_handler(int signum) {
     printf("\n=== InterController PAUSADO ===\n");
+    read_process_info();
     print_status();
     printf("=== InterController CONTINUADO ===\n");
     signal(SIGINT, ctrlC_handler);
@@ -94,4 +100,29 @@ void print_status(void) {
                processos[i].qtd_acessos[1],
                processos[i].executando);
     }
+}
+
+void read_process_info(void) {
+    // aloca a memória compartilhada
+    int segmento = shmget (IPC_CODE, sizeof (processos), IPC_CREAT | S_IRUSR | S_IWUSR);
+    if (segmento == -1) {
+        perror("shmget falhou");
+        exit(EXIT_FAILURE);
+    }
+
+    // conecta a memória compartilhada
+    InfoProcesso* shm_processos = (InfoProcesso*) shmat (segmento, 0, 0);
+    if (shm_processos == (InfoProcesso*) -1) {
+        perror("shmat falhou");
+        exit(EXIT_FAILURE);
+    }
+
+    // copia os dados da memória compartilhada para o array local
+    for (int i = 0; i < 5; i++) {
+        processos[i] = shm_processos[i];
+    }
+
+    // desconecta a memória compartilhada
+    shmdt(shm_processos);
+    shmctl (segmento, IPC_RMID, 0);
 }
