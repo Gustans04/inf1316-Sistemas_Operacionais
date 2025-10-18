@@ -72,12 +72,20 @@ void print_status(void) {
             case TERMINADO: printf("TERMINADO\t"); break;
         }
         if (processos[i].estado == BLOQUEADO) {
-            printf("%d\t\t%s\t", processos[i].dispositivo, processos[i].operacao);
+            switch (processos[i].dispositivo) {
+                case D1: printf("D1\t\t"); break;
+                case D2: printf("D2\t\t"); break;
+            }
+            switch (processos[i].operacao) {
+                case R: printf("R\t\t"); break;
+                case W: printf("W\t\t"); break;
+                case X: printf("X\t\t"); break;
+            }
         } else {
             printf("-\t\t-\t");
         }
-        printf("\t%d\t\t%d\t%d\n", 
-               processos[i].executando,
+        printf("\t    %s", processos[i].executando ? "SIM" : "NÃO");
+        printf("\t\t%d\t%d\n", 
                processos[i].qtd_acessos[0], 
                processos[i].qtd_acessos[1]);
     }

@@ -1,6 +1,8 @@
 #ifndef AUX_FUNC
 #define AUX_FUNC
 
+#include <sys/types.h>  // for pid_t
+
 // Códigos IPC para memória compartilhada
 #define IPC_CODE  1234
 
@@ -31,8 +33,8 @@ typedef struct {
     pid_t pid;
     int pc;
     EstadoProcesso estado;
-    Dispositivos dispositivo; // 0: D1, 1: D2
-    Operacoes operacao[2]; // R/W/X
+    Dispositivos dispositivo;
+    Operacoes operacao; // R/W/X
     int qtd_acessos[2]; // D1, D2
     int executando;
 } InfoProcesso;
