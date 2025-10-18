@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <string.h>
 
 #include "aux.h"
 
@@ -26,7 +27,7 @@ int main()
     } else if (inter_pid == 0) {
         // InterController 
         printf("InterController com PID %d\n", getpid());
-        execl("./intercontroller", "", NULL);
+        execl("./intercontroller", "inter", NULL);
         fprintf(stderr, "Erro ao rodar o InterController\n");
         exit(EXIT_FAILURE);
     }
@@ -38,7 +39,11 @@ int main()
             exit(EXIT_FAILURE);
         } else if (pid_list[i] == 0) {
             // Applications
-            execl("./application", "", NULL);
+            char app_name[20];
+            snprintf(app_name, sizeof(app_name), "application%d", i);
+            app_name[12] = '\0';
+
+            execl("./application", app_name, NULL);
             fprintf(stderr, "Erro ao rodar a Application\n");
             exit(EXIT_FAILURE);
         }
@@ -68,7 +73,23 @@ int main()
 
     while(1)
     {
-        
+        char buffer[10];
+
+        // Lê IRQs
+        ssize_t bytes_read = read(fifo_irq, buffer, sizeof(buffer));
+        if (bytes_read > 0) {
+            buffer[bytes_read] = '\0';
+            printf("Kernel recebeu: %s\n", buffer);
+            // Aqui você pode adicionar o tratamento das IRQs
+        }
+
+        // Lê SYSCALLs
+        bytes_read = read(fifo_syscall, buffer, sizeof(buffer));
+        if (bytes_read > 0) {
+            buffer[bytes_read] = '\0';
+            printf("Kernel recebeu: %s\n", buffer);
+            // Aqui você pode adicionar o tratamento das SYSCALLs
+        }
     }
 
     for(int i = 0; i < NUM_APP + 1; i++) wait(NULL);
