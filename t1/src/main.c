@@ -129,10 +129,10 @@ int main()
     pid_t pidTemp = removerDaFila(prontos); // Pega o primeiro da fila de prontos
     InfoProcesso* appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
     if (appAtual) {
-        pthread_mutex_lock(&mutex);
+        sem_lock();
         appAtual->estado = EXECUTANDO;
         appAtual->executando = 1;
-        pthread_mutex_unlock(&mutex);
+        sem_unlock();
     }
 
     while(1)
@@ -345,12 +345,12 @@ int main()
         while ((app = waitpid(-1, &status, WNOHANG)) > 0) 
         {
             InfoProcesso *processo = encontrarAplicacaoPorPID(shm_processos, app);
-            pthread_mutex_lock(&mutex);
+            sem_lock();
             if (processo) {
                 processo->estado = TERMINADO;
                 processo->executando = 0;
             }
-            pthread_mutex_unlock(&mutex);
+            sem_unlock();
             removerTodasOcorrencias(prontos, app);
             removerTodasOcorrencias(esperandoD1, app);
             removerTodasOcorrencias(esperandoD2, app);

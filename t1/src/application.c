@@ -106,11 +106,9 @@ int main()
             snprintf(msg, sizeof(msg), "%7d;%d;%d", getpid(), Dx, Op);
             write(fifo_syscall, msg, 12);
         }
-        printf("Application com PID %d finalizando sua %dª iteração\n", getpid(), PC);
         usleep(500000); // 500 milissegundos
     }
 
-    printf("\nApplication com PID %d terminou sua execução ANTES\n", getpid());
     sem_lock();
     appAtual->estado = TERMINADO;
     appAtual->executando = 0;
