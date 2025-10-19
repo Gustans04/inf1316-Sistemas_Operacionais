@@ -1,3 +1,5 @@
+#define _DEFAULT_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -18,11 +20,13 @@ int main()
     pid_t inter_pid;
 
     // Lista de processos esperando pelos dispositivos
-    FilaApps* esperandoD1 = (FilaApps* )malloc(sizeof(InfoProcesso));
-    FilaApps* esperandoD2 = (FilaApps* )malloc(sizeof(InfoProcesso));
+    FilaApps* esperandoD1 = (FilaApps* )malloc(sizeof(FilaApps));
+    FilaApps* esperandoD2 = (FilaApps* )malloc(sizeof(FilaApps));
+    FilaApps* prontos = (FilaApps* )malloc(sizeof(FilaApps));
     inicializarFila(esperandoD1);
     inicializarFila(esperandoD2);
-    
+    inicializarFila(prontos);
+
     // aloca a memória compartilhada
     int segmento = shmget (IPC_CODE, sizeof (InfoProcesso) * NUM_APP, IPC_CREAT | S_IRUSR | S_IWUSR);
     if (segmento == -1) {
@@ -55,21 +59,27 @@ int main()
             exit(EXIT_FAILURE);
         } else if (pid_list[i] == 0) {
             // Applications
+            printf("Criando Application com PID %d\n", getpid());
             char app_name[20];
             snprintf(app_name, sizeof(app_name), "application%d", i);
             app_name[12] = '\0';
 
+            execl("./application", app_name, NULL);
+            fprintf(stderr, "Erro ao rodar a Application\n");
+            exit(EXIT_FAILURE);
+        }
+        else {
+            // Kernel continua aqui
+            // Adiciona o pid da Application na fila de prontos
+            inserirNaFila(prontos, pid_list[i]);
+
             // Adiciona o pid da Application na struct de memória compartilhada
-            shm_processos[i].pid = getpid();
+            shm_processos[i].pid = pid_list[i];
             shm_processos[i].estado = PRONTO;
             shm_processos[i].dispositivo = -1;
             shm_processos[i].operacao = -1;
             shm_processos[i].executando = 1;
             memset(shm_processos[i].qtd_acessos, 0, sizeof(shm_processos[i].qtd_acessos));
-
-            execl("./application", app_name, NULL);
-            fprintf(stderr, "Erro ao rodar a Application\n");
-            exit(EXIT_FAILURE);
         }
     }
 
@@ -98,16 +108,16 @@ int main()
     for (int i = 1; i < NUM_APP; i++)
     {
         if (kill(pid_list[i], SIGSTOP) == -1)
-            {
-                perror("Falha ao enviar sinal SIGSTOP");
-                exit(EXIT_FAILURE);
-            }
+        {
+            perror("Falha ao enviar sinal SIGSTOP");
+            exit(EXIT_FAILURE);
+        }
+        shm_processos[i].executando = 0;
     }
 
-    InfoProcesso* appAtual; 
-    InfoProcesso* appProx; 
-    int atual = 0;
-    int proximo_indice = 1;
+    pid_t pidTemp = removerDaFila(prontos); // Pega o primeiro da fila de prontos
+    InfoProcesso* appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+
     while(1)
     {
         char buffer[25];
@@ -127,18 +137,45 @@ int main()
 
                 if (strncmp(ponteiro_msg, "IRQ0", 5) == 0)
                 {
-                    appAtual = &shm_processos[atual];
-                    // ... (resto da sua lógica IRQ0) ...
-                    // ...
-                    appProx->estado = EXECUTANDO;
-                    appProx->executando = 1;
+                    // Troca de contexto entre aplicações
+                    appAtual->estado = PRONTO;
+                    appAtual->executando = 0;
+
+                    if (kill(appAtual->pid, SIGSTOP) == -1)
+                    {
+                        perror("Falha ao enviar sinal SIGSTOP");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    inserirNaFila(prontos, appAtual->pid);
+
+                    // Seleciona a próxima aplicação pronta
+                    pidTemp = removerDaFila(prontos);
+                    appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+
+                    // Verifica se há aplicações prontas
+                    while (appAtual->estado != PRONTO)
+                    {
+                        pidTemp = removerDaFila(prontos);
+                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                    }
+
+                    // Reativa a próxima aplicação
+                    if (kill(appAtual->pid, SIGCONT) == -1)
+                    {
+                        perror("Falha ao enviar sinal SIGCONT");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    appAtual->estado = EXECUTANDO;
+                    appAtual->executando = 1;
                 }
                 else if (strncmp(ponteiro_msg, "IRQ1", 5) == 0)
                 {
                     if (!estaVazia(esperandoD1))
                     {
                         pid_t pidTemp = removerDaFila(esperandoD1);
-                        appAtual = encontrarAplicacaoPorPID(shm_processos, NUM_APP, pidTemp);
+                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
                         appAtual->estado = ESPERANDO;
                     }
                 }
@@ -147,7 +184,7 @@ int main()
                     if (!estaVazia(esperandoD2))
                     {
                         pid_t pidTemp = removerDaFila(esperandoD2);
-                        appAtual = encontrarAplicacaoPorPID(shm_processos, NUM_APP, pidTemp);
+                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
                         appAtual->estado = ESPERANDO;
                     }
                 }
@@ -170,7 +207,7 @@ int main()
 
             if (itensEncontrados == 3)
             {
-                appAtual = encontrarAplicacaoPorPID(shm_processos, NUM_APP, pidTemp);
+                appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
                 appAtual->estado = BLOQUEADO;
                 appAtual->dispositivo = dxTemp;
                 appAtual->operacao = opTemp;
@@ -193,6 +230,27 @@ int main()
                     perror("Falha ao enviar sinal SIGSTOP");
                     exit(EXIT_FAILURE);
                 }
+
+                // Seleciona a próxima aplicação pronta
+                pidTemp = removerDaFila(prontos);
+                appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+
+                // Verifica se há aplicações prontas
+                while (appAtual->estado != PRONTO)
+                {
+                    pidTemp = removerDaFila(prontos);
+                    appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                }
+
+                // Reativa a próxima aplicação
+                if (kill(appAtual->pid, SIGCONT) == -1)
+                {
+                    perror("Falha ao enviar sinal SIGCONT");
+                    exit(EXIT_FAILURE);
+                }
+
+                appAtual->estado = EXECUTANDO;
+                appAtual->executando = 1;
             }
         }
     }
