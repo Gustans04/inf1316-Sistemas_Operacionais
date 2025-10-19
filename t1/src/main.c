@@ -138,8 +138,7 @@ int main()
                 if (strncmp(ponteiro_msg, "IRQ0", 5) == 0)
                 {
                     // Troca de contexto entre aplicações
-                    if (appAtual->estado == EXECUTANDO)
-                        appAtual->estado = PRONTO;
+                    if (appAtual->estado == EXECUTANDO) appAtual->estado = PRONTO;
                     appAtual->executando = 0;
 
                     if (kill(appAtual->pid, SIGSTOP) == -1)
@@ -211,8 +210,10 @@ int main()
             {
                 appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
                 appAtual->estado = BLOQUEADO;
+
                 if (appAtual->executando) era_atual = 1;
                 else era_atual = 0;
+
                 appAtual->executando = 0;
 
                 switch (dxTemp)
@@ -265,6 +266,7 @@ int main()
 
                     appAtual->estado = EXECUTANDO;
                     appAtual->executando = 1;
+                }
             }
         }
     }
