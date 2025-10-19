@@ -138,7 +138,8 @@ int main()
                 if (strncmp(ponteiro_msg, "IRQ0", 5) == 0)
                 {
                     // Troca de contexto entre aplicações
-                    appAtual->estado = PRONTO;
+                    if (appAtual->estado == EXECUTANDO)
+                        appAtual->estado = PRONTO;
                     appAtual->executando = 0;
 
                     if (kill(appAtual->pid, SIGSTOP) == -1)
@@ -209,19 +210,32 @@ int main()
             {
                 appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
                 appAtual->estado = BLOQUEADO;
-                appAtual->dispositivo = dxTemp;
-                appAtual->operacao = opTemp;
                 appAtual->executando = 0;
 
                 switch (dxTemp)
                 {
                     case D1: 
+                        appAtual->dispositivo = D1;
                         inserirNaFila(esperandoD1, pidTemp); 
                         appAtual->qtd_acessos[0]++; 
                         break;
                     case D2: 
-                        inserirNaFila(esperandoD2, pidTemp); 
-                        appAtual->qtd_acessos[1]++; 
+                        appAtual->dispositivo = D2;
+                        inserirNaFila(esperandoD2, pidTemp);
+                        appAtual->qtd_acessos[1]++;
+                        break;
+                }
+
+                switch (opTemp)
+                {
+                    case R:
+                        appAtual->operacao = R;
+                        break;
+                    case W:
+                        appAtual->operacao = W;
+                        break;
+                    case X:
+                        appAtual->operacao = X;
                         break;
                 }
 
@@ -234,23 +248,6 @@ int main()
                 // Seleciona a próxima aplicação pronta
                 pidTemp = removerDaFila(prontos);
                 appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-
-                // Verifica se há aplicações prontas
-                while (appAtual->estado != PRONTO)
-                {
-                    pidTemp = removerDaFila(prontos);
-                    appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                }
-
-                // Reativa a próxima aplicação
-                if (kill(appAtual->pid, SIGCONT) == -1)
-                {
-                    perror("Falha ao enviar sinal SIGCONT");
-                    exit(EXIT_FAILURE);
-                }
-
-                appAtual->estado = EXECUTANDO;
-                appAtual->executando = 1;
             }
         }
     }
