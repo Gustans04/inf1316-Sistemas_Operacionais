@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sys/shm.h>
 #include <sys/ipc.h>
+#include <semaphore.h>
 
 #include "aux.h"
 
@@ -19,6 +20,9 @@ int main()
     signal(SIGINT, SIG_IGN);
     pid_t pid_list[NUM_APP];
     pid_t inter_pid;
+    
+    // Initialize the semaphore for inter-process communication
+    init_sem();
 
     // Lista de processos esperando pelos dispositivos
     FilaApps* esperandoD1 = (FilaApps* )malloc(sizeof(FilaApps));
@@ -93,7 +97,7 @@ int main()
             // Adiciona o pid da Application na fila de prontos
             inserirNaFila(prontos, pid_list[i]);
 
-            pthread_mutex_lock(&mutex);
+            sem_lock();
             // Adiciona o pid da Application na struct de memória compartilhada
             shm_processos[i].pid = pid_list[i];
             shm_processos[i].pc = 0;
@@ -102,7 +106,7 @@ int main()
             shm_processos[i].operacao = -1;
             shm_processos[i].executando = 1;
             memset(shm_processos[i].qtd_acessos, 0, sizeof(shm_processos[i].qtd_acessos));
-            pthread_mutex_unlock(&mutex);
+            sem_unlock();
         }
     }
 
@@ -117,9 +121,9 @@ int main()
             exit(EXIT_FAILURE);
         }
 
-        pthread_mutex_lock(&mutex);
+        sem_lock();
         shm_processos[i].executando = 0;
-        pthread_mutex_unlock(&mutex);
+        sem_unlock();
     }
 
     pid_t pidTemp = removerDaFila(prontos); // Pega o primeiro da fila de prontos
@@ -144,7 +148,7 @@ int main()
 
                 if (strncmp(ponteiro_msg, "IRQ0", 5) == 0)
                 {
-                    pthread_mutex_lock(&mutex);
+                    sem_lock();
                     if (appAtual->estado == EXECUTANDO)
                     {
                         printf("Kernel: Preemptando processo %d (timer)\n", appAtual->pid);
@@ -158,7 +162,7 @@ int main()
                         }
                         inserirNaFila(prontos, appAtual->pid);
                     }
-                    pthread_mutex_unlock(&mutex);
+                    sem_unlock();
 
                     int proximo_encontrado = 0;
                     while (!estaVazia(prontos))
@@ -173,7 +177,7 @@ int main()
                             appAtual = appTestado; 
                             
                             printf("Kernel: Escalonando PID %d\n", appAtual->pid);
-                            pthread_mutex_lock(&mutex);
+                            sem_lock();
                             if (kill(appAtual->pid, SIGCONT) == -1)
                             {
                                 perror("Falha ao enviar sinal SIGCONT (IRQ0)");
@@ -182,7 +186,7 @@ int main()
                             appAtual->estado = EXECUTANDO;
                             appAtual->executando = 1;
                             proximo_encontrado = 1;
-                            pthread_mutex_unlock(&mutex);
+                            sem_unlock();
                             break; 
                         }
                         printf("Kernel: Ignorando PID %d (estado nao eh PRONTO)\n", pidTemp);
@@ -199,10 +203,10 @@ int main()
                     {
                         pid_t pidTemp = removerDaFila(esperandoD1);
                         InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                        pthread_mutex_lock(&mutex);
+                        sem_lock();
                         appPronto->estado = PRONTO;
                         inserirNaFila(prontos, appPronto->pid);
-                        pthread_mutex_unlock(&mutex);
+                        sem_unlock();
                     }
                 }
                 
@@ -212,10 +216,10 @@ int main()
                     {
                         pid_t pidTemp = removerDaFila(esperandoD2);
                         InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                        pthread_mutex_lock(&mutex);
+                        sem_lock();
                         appPronto->estado = PRONTO;
                         inserirNaFila(prontos, appPronto->pid);
-                        pthread_mutex_unlock(&mutex);
+                        sem_unlock();
                     }
                 }
 
@@ -239,7 +243,7 @@ int main()
             if (itensEncontrados == 3)
             {
                 InfoProcesso* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                pthread_mutex_lock(&mutex);
+                sem_lock();
                 appBloqueado->estado = BLOQUEADO;
 
                 if (appBloqueado->executando) era_atual = 1;
@@ -273,7 +277,7 @@ int main()
                         appBloqueado->operacao = X;
                         break;
                 }
-                pthread_mutex_unlock(&mutex);
+                sem_unlock();
 
                 if (kill(pidTemp, SIGSTOP) == -1)
                 {
@@ -294,7 +298,7 @@ int main()
                         if (appAtual->estado == PRONTO)
                         {
                             printf("Kernel: Escalonando PID %d\n", appAtual->pid);
-                            pthread_mutex_lock(&mutex);
+                            sem_lock();
                             if (kill(appAtual->pid, SIGCONT) == -1)
                             {
                                 perror("Falha ao enviar sinal SIGCONT (SYSCALL)");
@@ -303,7 +307,7 @@ int main()
                             appAtual->estado = EXECUTANDO;
                             appAtual->executando = 1;
                             proximo_encontrado = 1;
-                            pthread_mutex_unlock(&mutex);
+                            sem_unlock();
                             break; 
                         }
                         printf("Kernel: Ignorando PID %d (estado nao eh PRONTO)\n", pidTemp);
@@ -339,6 +343,9 @@ int main()
     shmdt(shm_processos);
     close(fifo_irq);
     close(fifo_syscall);
+    
+    // Cleanup semaphore
+    cleanup_sem();
 
     return 0;
 }

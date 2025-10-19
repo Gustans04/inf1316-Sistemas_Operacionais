@@ -2,7 +2,9 @@
 #define AUX_FUNC
 
 #include <sys/types.h>  // for pid_t
-#include <pthread.h> // for pthread_mutex_t
+#include <semaphore.h>  // for named semaphores
+#include <fcntl.h>      // for O_* constants
+#include <sys/stat.h>   // for mode constants
 
 // Códigos IPC para memória compartilhada
 #define IPC_CODE  1234
@@ -62,6 +64,12 @@ pid_t procuraNaFila(FilaApps *fila, pid_t pid_desejado);
 
 void print_status(InfoProcesso* processos);
 
-extern pthread_mutex_t mutex;
+// Named semaphore functions for inter-process synchronization
+void init_sem(void);
+void sem_lock(void);
+void sem_unlock(void);
+void cleanup_sem(void);
+
+extern sem_t *process_sem;
 
 #endif

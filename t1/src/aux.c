@@ -5,9 +5,41 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <ctype.h>
-#include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
 
-pthread_mutex_t mutex;
+sem_t *process_sem;
+
+void init_sem(void) {
+    // Remove any existing semaphore
+    sem_unlink("/t1_process_sem");
+    
+    // Create a named semaphore with value 1 (unlocked)
+    process_sem = sem_open("/t1_process_sem", O_CREAT, 0666, 1);
+    if (process_sem == SEM_FAILED) {
+        perror("sem_open failed");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void sem_lock(void) {
+    if (sem_wait(process_sem) == -1) {
+        perror("sem_wait failed");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void sem_unlock(void) {
+    if (sem_post(process_sem) == -1) {
+        perror("sem_post failed");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void cleanup_sem(void) {
+    sem_close(process_sem);
+    sem_unlink("/t1_process_sem");
+}
 
 int criaFIFO(const char* nomeFIFO)
 {
@@ -36,23 +68,23 @@ int abreFIFO(int* fifo, const char* nomeFIFO, int modo)
 
 InfoProcesso* encontrarAplicacaoPorPID(InfoProcesso *lista_processos, pid_t pid_desejado)
 {
-    pthread_mutex_lock(&mutex);
+    sem_lock();
     for (int i = 0; i < NUM_APP; i++)
     {
         if (lista_processos[i].pid == pid_desejado)
         {
-            pthread_mutex_unlock(&mutex);
+            sem_unlock();
             return &lista_processos[i];
         }
     }
-    pthread_mutex_unlock(&mutex);
+    sem_unlock();
     return NULL;
 }
 
 int processosAcabaram(InfoProcesso *lista_processos)
 {
     int qtd_terminados = 0;
-    pthread_mutex_lock(&mutex);
+    sem_lock();
     for (int i = 0; i < NUM_APP; i++)
     {
         if (lista_processos[i].estado == TERMINADO)
@@ -60,7 +92,7 @@ int processosAcabaram(InfoProcesso *lista_processos)
             qtd_terminados++;
         }
     }
-    pthread_mutex_unlock(&mutex);
+    sem_unlock();
     return qtd_terminados == NUM_APP;
 }
 
@@ -81,7 +113,8 @@ void inserirNaFila(FilaApps *fila, pid_t valor)
 pid_t removerDaFila(FilaApps *fila) 
 {
     int valor_removido = fila->lista[fila->inicio];
-    fila->qtd--;
+    if (fila->qtd > 0)
+        fila->qtd--;
     fila->inicio = (fila->inicio + 1) % NUM_APP;
     return valor_removido;
 }
@@ -110,7 +143,7 @@ void print_status(InfoProcesso* processos)
     printf("---------------------------------------------------"
            "-----------------------------------------\n"); // Linha divisória
 
-    pthread_mutex_lock(&mutex);
+    sem_lock();
     for (int i = 0; i < 5; i++) {
         char *estado_str = "-";
         char *dispositivo_str = "-";
@@ -146,5 +179,5 @@ void print_status(InfoProcesso* processos)
         printf("%-4d ",   processos[i].qtd_acessos[0]);
         printf("%-4d \n",  processos[i].qtd_acessos[1]);
     }
-    pthread_mutex_unlock(&mutex);
+    sem_unlock();
 }
