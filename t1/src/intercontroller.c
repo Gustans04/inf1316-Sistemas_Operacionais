@@ -18,7 +18,6 @@ static InfoProcesso processos[NUM_APP];
 
 void ctrlC_handler(int signum);
 void finalizar(int signum);
-void print_status(void);
 void read_process_info(void);
 
 sig_atomic_t rodando = 1;
@@ -70,52 +69,9 @@ void ctrlC_handler(int signum) {
     (void)signum; // remove warning
     printf("\n=== InterController PAUSADO ===\n");
     read_process_info();
-    print_status();
+    print_status(processos);
     printf("=== InterController CONTINUADO ===\n");
     signal(SIGINT, ctrlC_handler);
-}
-
-void print_status(void) {
-    printf("%-7s %-4s %-12s %-12s %-10s %-12s %-4s %-4s\n", 
-           "PID", "PC", "ESTADO", "DISPOSITIVO", "OPERAÇÃO", "EXECUTANDO", "D1", "D2");
-    printf("---------------------------------------------------"
-           "-----------------------------------------\n"); // Linha divisória
-
-    for (int i = 0; i < 5; i++) {
-        char *estado_str = "-";
-        char *dispositivo_str = "-";
-        char *operacao_str = "-";
-        char *executando_str = processos[i].executando ? "SIM" : "NAO"; // Não sem acento para evitar problemas de padding
-
-        switch (processos[i].estado) {
-            case PRONTO:     estado_str = "PRONTO";     break;
-            case EXECUTANDO: estado_str = "EXECUTANDO"; break;
-            case ESPERANDO: estado_str = "ESPERANDO"; break;
-            case BLOQUEADO:  estado_str = "BLOQUEADO";  break;
-            case TERMINADO:  estado_str = "TERMINADO";  break;
-        }
-
-        if (processos[i].estado == BLOQUEADO) {
-            switch (processos[i].dispositivo) {
-                case D1: dispositivo_str = "D1"; break;
-                case D2: dispositivo_str = "D2"; break;
-            }
-            switch (processos[i].operacao) {
-                case R: operacao_str = "R"; break;
-                case W: operacao_str = "W"; break;
-                case X: operacao_str = "X"; break;
-            }
-        }
-
-        printf("%-7d ",   processos[i].pid);
-        printf("%-4d ",   processos[i].pc);
-        printf("%-12s ",  estado_str);
-        printf("%-12s ",  dispositivo_str);
-        printf("%-10s ",  operacao_str);
-        printf("%-10s ",  executando_str);
-        printf("%-4d ",   processos[i].qtd_acessos[0]);
-        printf("%-4d \n",  processos[i].qtd_acessos[1]);
-    }
 }
 
 void read_process_info(void) {

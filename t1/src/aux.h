@@ -59,4 +59,6 @@ pid_t removerDaFila(FilaApps *fila);
 int estaVazia(FilaApps *fila);
 pid_t procuraNaFila(FilaApps *fila, pid_t pid_desejado);
 
+void print_status(InfoProcesso* processos);
+
 #endif

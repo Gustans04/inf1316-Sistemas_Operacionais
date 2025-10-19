@@ -301,12 +301,15 @@ int main()
     }
 
     for(int i = 0; i < NUM_APP + 1; i++) wait(NULL); // esperar todas as 5 Applications e o InterController
+    
+    printf("Kernel terminou sua execução\n");
+
+    printf("\n=== Tabela Final dos Processos ===\n");
+    print_status(shm_processos);
 
     shmdt(shm_processos);
     close(fifo_irq);
     close(fifo_syscall);
-    
-    printf("Kernel terminou sua execução\n");
 
     return 0;
 }
