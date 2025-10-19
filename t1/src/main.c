@@ -145,9 +145,10 @@ int main()
                 if (strncmp(ponteiro_msg, "IRQ0", 5) == 0)
                 {
                     pthread_mutex_lock(&mutex);
-                    if (appAtual->estado == EXECUTANDO || appAtual->estado == PRONTO)
+                    if (appAtual->estado == EXECUTANDO)
                     {
-                        if (appAtual->estado == EXECUTANDO) appAtual->estado = PRONTO;
+                        printf("Kernel: Preemptando processo %d (timer)\n", appAtual->pid);
+                        appAtual->estado = PRONTO;
                         appAtual->executando = 0;
 
                         if (kill(appAtual->pid, SIGSTOP) == -1)
@@ -159,29 +160,36 @@ int main()
                     }
                     pthread_mutex_unlock(&mutex);
 
-                    // Verifica se há processos para escalonar
-                    if (estaVazia(prontos))
+                    int proximo_encontrado = 0;
+                    while (!estaVazia(prontos))
                     {
-                        printf("Kernel: Fila de prontos vazia\n");
-                    }
-                    else
-                    {
-                        do {
-                            pidTemp = removerDaFila(prontos);
-                            appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                            printf("aquii  tbmmmm!! %d\n", appAtual->estado);
-                            printf("pid %d\n\n", pidTemp);
-                        } while (appAtual->estado != PRONTO); // isso acessa o mutex
+                        pidTemp = removerDaFila(prontos);
+                        InfoProcesso* appTestado = encontrarAplicacaoPorPID(shm_processos, pidTemp); 
+                        
+                        printf("Kernel: Verificando PID %d da fila [Estado: %d]\n", pidTemp, appTestado->estado);
 
-                        pthread_mutex_lock(&mutex);
-                        if (kill(appAtual->pid, SIGCONT) == -1)
+                        if (appTestado->estado == PRONTO) 
                         {
-                            perror("Falha ao enviar sinal SIGCONT (IRQ0)");
-                            exit(EXIT_FAILURE);
+                            appAtual = appTestado; 
+                            
+                            printf("Kernel: Escalonando PID %d\n", appAtual->pid);
+                            pthread_mutex_lock(&mutex);
+                            if (kill(appAtual->pid, SIGCONT) == -1)
+                            {
+                                perror("Falha ao enviar sinal SIGCONT (IRQ0)");
+                                exit(EXIT_FAILURE);
+                            }
+                            appAtual->estado = EXECUTANDO;
+                            appAtual->executando = 1;
+                            proximo_encontrado = 1;
+                            pthread_mutex_unlock(&mutex);
+                            break; 
                         }
-                        appAtual->estado = EXECUTANDO;
-                        appAtual->executando = 1;
-                        pthread_mutex_unlock(&mutex);
+                        printf("Kernel: Ignorando PID %d (estado nao eh PRONTO)\n", pidTemp);
+                    }
+
+                    if (!proximo_encontrado && appAtual->estado != EXECUTANDO) {
+                        printf("Kernel: Fila de prontos vazia. CPU Ocioso.\n");
                     }
                 }
                 
@@ -275,30 +283,34 @@ int main()
 
                 if (era_atual)
                 {
-                    // Verifica se há alguém para escalonar
-                    if (estaVazia(prontos))
+                    int proximo_encontrado = 0;
+                    while (!estaVazia(prontos))
                     {
-                        printf("Kernel: Fila de prontos vazia\n");
-                    }
-                    else
-                    {
-                        do {
-                            pidTemp = removerDaFila(prontos);
-                            appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                            printf("aquii  tbmmmm!! %d\n", appAtual->estado);
-                            printf("pid %d\n\n", pidTemp);
-                        } while (appAtual->estado != PRONTO); // isso acessa o mutex
+                        pidTemp = removerDaFila(prontos);
+                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
 
-                        pthread_mutex_lock(&mutex);
-                        if (kill(appAtual->pid, SIGCONT) == -1)
+                        printf("Kernel: Verificando PID %d da fila [Estado: %d]\n", pidTemp, appAtual->estado);
+
+                        if (appAtual->estado == PRONTO)
                         {
-                            perror("Falha ao enviar sinal SIGCONT");
-                            exit(EXIT_FAILURE);
+                            printf("Kernel: Escalonando PID %d\n", appAtual->pid);
+                            pthread_mutex_lock(&mutex);
+                            if (kill(appAtual->pid, SIGCONT) == -1)
+                            {
+                                perror("Falha ao enviar sinal SIGCONT (SYSCALL)");
+                                exit(EXIT_FAILURE);
+                            }
+                            appAtual->estado = EXECUTANDO;
+                            appAtual->executando = 1;
+                            proximo_encontrado = 1;
+                            pthread_mutex_unlock(&mutex);
+                            break; 
                         }
+                        printf("Kernel: Ignorando PID %d (estado nao eh PRONTO)\n", pidTemp);
+                    }
 
-                        appAtual->estado = EXECUTANDO;
-                        appAtual->executando = 1;
-                        pthread_mutex_unlock(&mutex);
+                    if (!proximo_encontrado) {
+                        printf("Kernel: Fila de prontos ficou vazia\n");
                     }
                 }
             }

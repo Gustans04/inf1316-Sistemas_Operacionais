@@ -77,7 +77,7 @@ int main()
         // Probabilidade de 15% para a realização de uma syscall
         if (aux <= 15)
         {
-            if (aux <= 70) Dx = D1; // probabbilidade de 70% para chaammada de D1
+            if (aux <= 60) Dx = D1; // probabbilidade de 60% para chaammada de D1
             else Dx = D2;
 
             if (aux % 3 == 0) Op = R;

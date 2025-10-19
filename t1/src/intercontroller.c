@@ -45,11 +45,11 @@ int main(void) {
 
         int valor_aleatorio = rand() % 1000; // Gera um valor aleatório entre 0 e 999
 
-        if (valor_aleatorio < 100) { // 10% de chance de gerar uma IRQ1
+        if (valor_aleatorio < 200) { // 20% de chance de gerar uma IRQ1
             write(fifo, "IRQ1", 5); // Simula uma IRQ1
         }
 
-        if (valor_aleatorio < 5) { // 0,5% de chance de gerar uma IRQ2
+        if (valor_aleatorio < 10) { // 1% de chance de gerar uma IRQ2
             write(fifo, "IRQ2", 5); // Simula uma IRQ2
         }
     }
