@@ -124,6 +124,12 @@ int main()
 
     pid_t pidTemp = removerDaFila(prontos); // Pega o primeiro da fila de prontos
     InfoProcesso* appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+    if (appAtual) {
+        pthread_mutex_lock(&mutex);
+        appAtual->estado = EXECUTANDO;
+        appAtual->executando = 1;
+        pthread_mutex_unlock(&mutex);
+    }
 
     while(1)
     {
@@ -155,7 +161,7 @@ int main()
                         {
                             perror("Falha ao enviar sinal SIGSTOP (IRQ0)");
                             exit(EXIT_FAILURE);
-                        }
+                        } 
                         inserirNaFila(prontos, appAtual->pid);
                     }
                     pthread_mutex_unlock(&mutex);
@@ -241,6 +247,7 @@ int main()
                 InfoProcesso* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
                 pthread_mutex_lock(&mutex);
                 appBloqueado->estado = BLOQUEADO;
+                removerTodasOcorrencias(prontos, pidTemp);
 
                 if (appBloqueado->executando) era_atual = 1;
                 else era_atual = 0;
@@ -289,6 +296,12 @@ int main()
                         pidTemp = removerDaFila(prontos);
                         appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
 
+                        // pula qualquer PID que não exista mais ou já tenha TERMINADO
+                        if (!appAtual || appAtual->estado == TERMINADO || kill(pidTemp, 0) == -1) {
+                            removerTodasOcorrencias(prontos, pidTemp); 
+                            continue; 
+                        }
+
                         printf("Kernel: Verificando PID %d da fila [Estado: %d]\n", pidTemp, appAtual->estado);
 
                         if (appAtual->estado == PRONTO)
@@ -321,6 +334,24 @@ int main()
             printf("\nTodos os processos acabaram!\n");
             break;
         }
+
+        // Varredura para verificar se um processo já acabou
+        int status;
+        pid_t app;
+        while ((app = waitpid(-1, &status, WNOHANG)) > 0) 
+        {
+            InfoProcesso *processo = encontrarAplicacaoPorPID(shm_processos, app);
+            pthread_mutex_lock(&mutex);
+            if (processo) {
+                processo->estado = TERMINADO;
+                processo->executando = 0;
+            }
+            pthread_mutex_unlock(&mutex);
+            removerTodasOcorrencias(prontos, app);
+            removerTodasOcorrencias(esperandoD1, app);
+            removerTodasOcorrencias(esperandoD2, app);
+        }
+
     }
 
     if (kill(inter_pid, SIGUSR1) == -1)

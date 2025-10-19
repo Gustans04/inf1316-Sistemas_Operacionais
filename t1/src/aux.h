@@ -56,7 +56,9 @@ int processosAcabaram(InfoProcesso *lista_processos);
 
 void inicializarFila(FilaApps *fila);
 void inserirNaFila(FilaApps *fila, int valor);
+int pid_na_fila(FilaApps *f, pid_t pid);
 pid_t removerDaFila(FilaApps *fila);
+void removerTodasOcorrencias(FilaApps *f, pid_t pid);
 int estaVazia(FilaApps *fila);
 pid_t procuraNaFila(FilaApps *fila, pid_t pid_desejado);
 

@@ -72,13 +72,12 @@ int main()
 
         usleep(500000); // 500 milissegundos
 
-        aux = rand() % 100 + 1; // Gera um número entre 0 ou 100
+        aux = rand() % 100; // Gera um número aleatório
         
         // Probabilidade de 15% para a realização de uma syscall
         if (aux <= 15)
         {
-            if (aux <= 60) Dx = D1; // probabbilidade de 60% para chaammada de D1
-            else Dx = D2;
+            Dx = (rand() % 100 < 75) ? D1 : D2; 
 
             if (aux % 3 == 0) Op = R;
             else if (aux % 3 == 1) Op = W;

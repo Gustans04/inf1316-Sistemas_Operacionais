@@ -71,11 +71,20 @@ void inicializarFila(FilaApps *fila)
     fila->qtd = 0;
 }
 
-void inserirNaFila(FilaApps *fila, pid_t valor) 
+int pid_na_fila(FilaApps *f, pid_t pid) 
 {
-    fila->lista[fila->fim] = valor;
-    fila->qtd++;
-    fila->fim = (fila->fim + 1) % NUM_APP;
+    for (int i = 0, idx = f->inicio; i < f->qtd; i++, idx = (idx + 1) % NUM_APP) {
+        if (f->lista[idx] == pid) return 1;
+    }
+    return 0;
+}
+
+void inserirNaFila(FilaApps *f, pid_t pid) 
+{
+    if (f->qtd == NUM_APP) return; 
+    if (pid_na_fila(f, pid)) return; // evita duplicata
+    f->lista[(f->inicio + f->qtd) % NUM_APP] = pid;
+    f->qtd++;
 }
 
 pid_t removerDaFila(FilaApps *fila) 
@@ -86,22 +95,33 @@ pid_t removerDaFila(FilaApps *fila)
     return valor_removido;
 }
 
+void removerTodasOcorrencias(FilaApps *f, pid_t pid) 
+{
+    int nova_qtd = 0;
+    int idx = f->inicio;
+    for (int i = 0; i < f->qtd; i++) {
+        pid_t cur = f->lista[idx];
+        idx = (idx + 1) % NUM_APP;
+        if (cur != pid) {
+            f->lista[(f->inicio + nova_qtd) % NUM_APP] = cur;
+            nova_qtd++;
+        }
+    }
+    f->qtd = nova_qtd;
+}
+
 int estaVazia(FilaApps *fila) 
 {
     return fila->qtd == 0;
 }
 
-pid_t procuraNaFila(FilaApps *fila, pid_t pid_desejado)
+pid_t procuraNaFila(FilaApps *f, pid_t pid_desejado) 
 {
-    for (int i = 0; i < NUM_APP; i++)
-    {
-        if (fila->lista[i] == pid_desejado)
-        {
-            return fila->lista[i];
-        }
-    }
+    for (int i = 0, idx = f->inicio; i < f->qtd; i++, idx = (idx+1) % NUM_APP)
+        if (f->lista[idx] == pid_desejado) return pid_desejado;
     return -1;
 }
+
 
 void print_status(InfoProcesso* processos) 
 {

@@ -73,9 +73,12 @@ void ctrlC_handler(int signum) {
 
     // Para todos os processos
     for (int i = 0; i < NUM_APP; i++) {
-        if (kill(processos[i].pid, SIGSTOP) == -1) {
-            perror("Falha ao enviar sinal SIGSTOP");
-            exit(EXIT_FAILURE);
+        if (processos[i].estado != TERMINADO)
+        {
+            if (kill(processos[i].pid, SIGSTOP) == -1) {
+                perror("Falha ao enviar sinal SIGSTOP");
+                exit(EXIT_FAILURE);
+            }
         }
     }
 
