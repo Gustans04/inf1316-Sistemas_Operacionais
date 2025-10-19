@@ -11,6 +11,7 @@
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <signal.h>
+#include <semaphore.h>
 
 #include "aux.h"
 
@@ -21,6 +22,9 @@ int main()
 {
     signal(SIGINT, SIG_IGN);
     srand(getpid() * time(NULL)); // Para os números ficarem randômicos
+    
+    // Abrir o semáforo existente para uso neste processo
+    process_sem = sem_open("/t1_process_sem", 0);
 
     int PC = 0; // Contador de iterações (Program Counter)
 
@@ -66,9 +70,9 @@ int main()
     while (PC < MAX)
     {
         printf("\nApplication com PID %d rodando pela %dª vez\n", getpid(), ++PC);
-        pthread_mutex_lock(&mutex);
+        sem_lock();
         appAtual->pc = PC;
-        pthread_mutex_unlock(&mutex);
+        sem_unlock();
 
         usleep(500000); // 500 milissegundos
 
@@ -102,19 +106,21 @@ int main()
             snprintf(msg, sizeof(msg), "%7d;%d;%d", getpid(), Dx, Op);
             write(fifo_syscall, msg, 12);
         }
-
+        printf("Application com PID %d finalizando sua %dª iteração\n", getpid(), PC);
         usleep(500000); // 500 milissegundos
     }
 
-    pthread_mutex_lock(&mutex);
+    printf("\nApplication com PID %d terminou sua execução ANTES\n", getpid());
+    sem_lock();
     appAtual->estado = TERMINADO;
     appAtual->executando = 0;
-    pthread_mutex_unlock(&mutex);
+    sem_unlock();
 
     printf("\nApplication com PID %d terminou sua execução\n", getpid());
     
     shmdt(shm_processos);
     close(fifo_syscall);
+    sem_close(process_sem);
 
     return 0;
 }

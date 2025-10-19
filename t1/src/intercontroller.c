@@ -11,6 +11,7 @@
 #include <time.h>
 #include <sys/shm.h>
 #include <sys/ipc.h>
+#include <semaphore.h>
 
 #include "aux.h"
 
@@ -25,6 +26,9 @@ sig_atomic_t rodando = 1;
 int main(void) {
     int fifo;
     srand(time(NULL));
+    
+    // Abrir o semáforo existente para uso neste processo
+    process_sem = sem_open("/t1_process_sem", 0);
 
     signal(SIGINT, ctrlC_handler);
     signal(SIGUSR1, finalizar);
@@ -55,6 +59,7 @@ int main(void) {
     }
 
     close(fifo);
+    sem_close(process_sem);
     printf("InterController terminou sua execução\n");
     return 0;
 }
@@ -115,12 +120,12 @@ void read_process_info(void) {
         exit(EXIT_FAILURE);
     }
 
-    pthread_mutex_lock(&mutex);
+    sem_lock();
     // copia os dados da memória compartilhada para o array local
     for (int i = 0; i < NUM_APP; i++) {
         processos[i] = shm_processos[i];
     }
-    pthread_mutex_unlock(&mutex);
+    sem_unlock();
 
     // desconecta a memória compartilhada
     shmdt(shm_processos);
