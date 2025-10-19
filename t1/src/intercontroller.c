@@ -70,7 +70,30 @@ void ctrlC_handler(int signum) {
     printf("\n=== InterController PAUSADO ===\n");
     read_process_info();
     print_status(processos);
+
+    // Para todos os processos
+    for (int i = 0; i < NUM_APP; i++) {
+        if (kill(processos[i].pid, SIGSTOP) == -1) {
+            perror("Falha ao enviar sinal SIGSTOP");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    kill(getpid(), SIGSTOP); // Pausa o InterController até receber SIGCONT
+
     printf("=== InterController CONTINUADO ===\n");
+
+    // Continua todos os processos
+    for (int i = 0; i < NUM_APP; i++) {
+        if (processos[i].estado == EXECUTANDO) {
+            if (kill(processos[i].pid, SIGCONT) == -1) {
+                perror("Falha ao enviar sinal SIGCONT");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    // Re-registra o handler de SIGINT
     signal(SIGINT, ctrlC_handler);
 }
 
