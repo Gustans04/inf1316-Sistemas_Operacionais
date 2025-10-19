@@ -17,14 +17,18 @@
 static InfoProcesso processos[NUM_APP];
 
 void ctrlC_handler(int signum);
+void finalizar(int signum);
 void print_status(void);
 void read_process_info(void);
+
+sig_atomic_t rodando = 1;
 
 int main(void) {
     int fifo;
     srand(time(NULL));
 
     signal(SIGINT, ctrlC_handler);
+    signal(SIGUSR1, finalizar);
 
     if (criaFIFO("FIFO_IRQ") < 0) {
         perror("Falha ao criar FIFO");
@@ -36,7 +40,7 @@ int main(void) {
         exit(EXIT_FAILURE);
     }
 
-    while(1) {
+    while(rodando) {
         usleep(500000); // Sleep por 500 milissegundos
         write(fifo, "IRQ0", 5); // Simula uma IRQ0
 
@@ -52,10 +56,18 @@ int main(void) {
     }
 
     close(fifo);
+    printf("InterController terminou sua execução\n");
     return 0;
 }
 
+void finalizar(int signum)
+{
+    (void)signum; // remove warning
+    rodando = 0;
+}
+
 void ctrlC_handler(int signum) {
+    (void)signum; // remove warning
     printf("\n=== InterController PAUSADO ===\n");
     read_process_info();
     print_status();

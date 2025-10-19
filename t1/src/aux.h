@@ -51,6 +51,7 @@ int criaFIFO(const char* nomeFIFO);
 int abreFIFO(int* fifo, const char* nomeFIFO, int modo);
 
 InfoProcesso* encontrarAplicacaoPorPID(InfoProcesso *lista_processos, pid_t pid_desejado);
+int processosAcabaram(InfoProcesso *lista_processos);
 
 void inicializarFila(FilaApps *fila);
 void inserirNaFila(FilaApps *fila, int valor);

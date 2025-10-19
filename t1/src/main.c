@@ -16,6 +16,7 @@
 
 int main() 
 {
+    signal(SIGINT, SIG_IGN);
     pid_t pid_list[NUM_APP];
     pid_t inter_pid;
 
@@ -38,6 +39,25 @@ int main()
     InfoProcesso* shm_processos = (InfoProcesso*) shmat (segmento, 0, 0);
     if (shm_processos == (InfoProcesso*) -1) {
         perror("shmat falhou");
+        exit(EXIT_FAILURE);
+    }
+
+    if (criaFIFO("FIFO_IRQ") < 0 || criaFIFO("FIFO_SYSCALL") < 0) {
+        perror("Falha ao criar FIFOs");
+        exit(EXIT_FAILURE);
+    }
+
+    int fifo_irq, fifo_syscall;
+
+    // O Kernel simplesmente lê o que for escrito na FIFO pelo InterController
+    if (abreFIFO(&fifo_irq, "FIFO_IRQ", O_RDONLY | O_NONBLOCK) < 0) {
+        perror("Falha ao abrir FIFO de IRQs");
+        exit(EXIT_FAILURE);
+    }
+
+    // O Kernel simplesmente lê o que for escrito na FIFO pelas Applications
+    if (abreFIFO(&fifo_syscall, "FIFO_SYSCALL", O_RDONLY | O_NONBLOCK) < 0) {
+        perror("Falha ao abrir FIFO de SYSCALLs");
         exit(EXIT_FAILURE);
     }
 
@@ -75,6 +95,7 @@ int main()
 
             // Adiciona o pid da Application na struct de memória compartilhada
             shm_processos[i].pid = pid_list[i];
+            shm_processos[i].pc = 0;
             shm_processos[i].estado = PRONTO;
             shm_processos[i].dispositivo = -1;
             shm_processos[i].operacao = -1;
@@ -85,25 +106,6 @@ int main()
 
     // Kernel
     printf("Kernel com PID %d\n", getpid());
-
-    if (criaFIFO("FIFO_IRQ") < 0 || criaFIFO("FIFO_SYSCALL") < 0) {
-        perror("Falha ao criar FIFOs");
-        exit(EXIT_FAILURE);
-    }
-
-    int fifo_irq, fifo_syscall;
-
-    // O Kernel simplesmente lê o que for escrito na FIFO pelo InterController
-    if (abreFIFO(&fifo_irq, "FIFO_IRQ", O_RDONLY | O_NONBLOCK) < 0) {
-        perror("Falha ao abrir FIFO de IRQs");
-        exit(EXIT_FAILURE);
-    }
-
-    // O Kernel simplesmente lê o que for escrito na FIFO pelas Applications
-    if (abreFIFO(&fifo_syscall, "FIFO_SYSCALL", O_RDONLY | O_NONBLOCK) < 0) {
-        perror("Falha ao abrir FIFO de SYSCALLs");
-        exit(EXIT_FAILURE);
-    }
 
     for (int i = 1; i < NUM_APP; i++)
     {
@@ -137,55 +139,62 @@ int main()
 
                 if (strncmp(ponteiro_msg, "IRQ0", 5) == 0)
                 {
-                    // Troca de contexto entre aplicações
-                    if (appAtual->estado == EXECUTANDO) appAtual->estado = PRONTO;
-                    appAtual->executando = 0;
-
-                    if (kill(appAtual->pid, SIGSTOP) == -1)
+                    if (appAtual->estado == EXECUTANDO || appAtual->estado == PRONTO)
                     {
-                        perror("Falha ao enviar sinal SIGSTOP");
-                        exit(EXIT_FAILURE);
+                        if (appAtual->estado == EXECUTANDO) appAtual->estado = PRONTO;
+                        appAtual->executando = 0;
+
+                        if (kill(appAtual->pid, SIGSTOP) == -1)
+                        {
+                            perror("Falha ao enviar sinal SIGSTOP (IRQ0)");
+                            exit(EXIT_FAILURE);
+                        }
+                        inserirNaFila(prontos, appAtual->pid);
                     }
 
-                    inserirNaFila(prontos, appAtual->pid);
-
-                    // Seleciona a próxima aplicação pronta
-                    pidTemp = removerDaFila(prontos);
-                    appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-
-                    // Verifica se há aplicações prontas
-                    while (appAtual->estado != PRONTO)
+                    // Verifica se há processos para escalonar
+                    if (estaVazia(prontos))
                     {
-                        pidTemp = removerDaFila(prontos);
-                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                        printf("Kernel: Fila de prontos vazia\n");
                     }
-
-                    // Reativa a próxima aplicação
-                    if (kill(appAtual->pid, SIGCONT) == -1)
+                    else
                     {
-                        perror("Falha ao enviar sinal SIGCONT");
-                        exit(EXIT_FAILURE);
-                    }
+                        do {
+                            pidTemp = removerDaFila(prontos);
+                            appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                            printf("aquii  tbmmmm!! %d\n", appAtual->estado);
+                            printf("pid %d\n\n", pidTemp);
+                        } while (appAtual->estado != PRONTO);
 
-                    appAtual->estado = EXECUTANDO;
-                    appAtual->executando = 1;
+                        if (kill(appAtual->pid, SIGCONT) == -1)
+                        {
+                            perror("Falha ao enviar sinal SIGCONT (IRQ0)");
+                            exit(EXIT_FAILURE);
+                        }
+                        appAtual->estado = EXECUTANDO;
+                        appAtual->executando = 1;
+                    }
                 }
-                else if (strncmp(ponteiro_msg, "IRQ1", 5) == 0)
+                
+                if (strncmp(ponteiro_msg, "IRQ1", 5) == 0)
                 {
                     if (!estaVazia(esperandoD1))
                     {
                         pid_t pidTemp = removerDaFila(esperandoD1);
-                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                        appAtual->estado = ESPERANDO;
+                        InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                        appPronto->estado = PRONTO;
+                        inserirNaFila(prontos, appPronto->pid);
                     }
                 }
-                else if (strncmp(ponteiro_msg, "IRQ2", 5) == 0)
+                
+                if (strncmp(ponteiro_msg, "IRQ2", 5) == 0)
                 {
                     if (!estaVazia(esperandoD2))
                     {
                         pid_t pidTemp = removerDaFila(esperandoD2);
-                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                        appAtual->estado = ESPERANDO;
+                        InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                        appPronto->estado = PRONTO;
+                        inserirNaFila(prontos, appPronto->pid);
                     }
                 }
 
@@ -208,38 +217,38 @@ int main()
 
             if (itensEncontrados == 3)
             {
-                appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                appAtual->estado = BLOQUEADO;
+                InfoProcesso* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                appBloqueado->estado = BLOQUEADO;
 
-                if (appAtual->executando) era_atual = 1;
+                if (appBloqueado->executando) era_atual = 1;
                 else era_atual = 0;
 
-                appAtual->executando = 0;
+                appBloqueado->executando = 0;
 
                 switch (dxTemp)
                 {
                     case D1: 
-                        appAtual->dispositivo = D1;
-                        inserirNaFila(esperandoD1, pidTemp); 
-                        appAtual->qtd_acessos[0]++; 
+                        appBloqueado->dispositivo = D1;
+                        inserirNaFila(esperandoD1, pidTemp);
+                        appBloqueado->qtd_acessos[0]++; 
                         break;
                     case D2: 
-                        appAtual->dispositivo = D2;
+                        appBloqueado->dispositivo = D2;
                         inserirNaFila(esperandoD2, pidTemp);
-                        appAtual->qtd_acessos[1]++;
+                        appBloqueado->qtd_acessos[1]++;
                         break;
                 }
 
                 switch (opTemp)
                 {
                     case R:
-                        appAtual->operacao = R;
+                        appBloqueado->operacao = R;
                         break;
                     case W:
-                        appAtual->operacao = W;
+                        appBloqueado->operacao = W;
                         break;
                     case X:
-                        appAtual->operacao = X;
+                        appBloqueado->operacao = X;
                         break;
                 }
 
@@ -251,29 +260,53 @@ int main()
 
                 if (era_atual)
                 {
-                    do {
-                        // Seleciona a próxima aplicação pronta
-                        pidTemp = removerDaFila(prontos);
-                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                    } while (appAtual->estado != PRONTO);
-
-                    // Reativa a próxima aplicação
-                    if (kill(appAtual->pid, SIGCONT) == -1)
+                    // Verifica se há alguém para escalonar
+                    if (estaVazia(prontos))
                     {
-                        perror("Falha ao enviar sinal SIGCONT");
-                        exit(EXIT_FAILURE);
+                        printf("Kernel: Fila de prontos vazia\n");
                     }
+                    else
+                    {
+                        do {
+                            pidTemp = removerDaFila(prontos);
+                            appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                            printf("aquii  tbmmmm!! %d\n", appAtual->estado);
+                            printf("pid %d\n\n", pidTemp);
+                        } while (appAtual->estado != PRONTO);
 
-                    appAtual->estado = EXECUTANDO;
-                    appAtual->executando = 1;
+                        if (kill(appAtual->pid, SIGCONT) == -1)
+                        {
+                            perror("Falha ao enviar sinal SIGCONT");
+                            exit(EXIT_FAILURE);
+                        }
+
+                        appAtual->estado = EXECUTANDO;
+                        appAtual->executando = 1;
+                    }
                 }
             }
         }
+
+        if (processosAcabaram(shm_processos))
+        {
+            printf("\nTodos os processos acabaram!\n");
+            break;
+        }
     }
 
-    for(int i = 0; i < NUM_APP + 1; i++) wait(NULL);
+    if (kill(inter_pid, SIGUSR1) == -1)
+    {
+        perror("Falha ao enviar sinal SIGUSR1");
+        exit(EXIT_FAILURE);
+    }
+
+    for(int i = 0; i < NUM_APP + 1; i++) wait(NULL); // esperar todas as 5 Applications e o InterController
 
     shmdt(shm_processos);
+    close(fifo_irq);
+    close(fifo_syscall);
     
+    printf("Kernel terminou sua execução\n");
+
     return 0;
 }

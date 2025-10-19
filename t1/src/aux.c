@@ -43,6 +43,19 @@ InfoProcesso* encontrarAplicacaoPorPID(InfoProcesso *lista_processos, pid_t pid_
     return NULL;
 }
 
+int processosAcabaram(InfoProcesso *lista_processos)
+{
+    int qtd_terminados = 0;
+    for (int i = 0; i < NUM_APP; i++)
+    {
+        if (lista_processos[i].estado == TERMINADO)
+        {
+            qtd_terminados++;
+        }
+    }
+    return qtd_terminados == NUM_APP;
+}
+
 void inicializarFila(FilaApps *fila) 
 {
     fila->inicio = 0;

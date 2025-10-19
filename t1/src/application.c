@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/shm.h>
 #include <sys/ipc.h>
+#include <signal.h>
 
 #include "aux.h"
 
@@ -18,6 +19,7 @@
 
 int main()
 {
+    signal(SIGINT, SIG_IGN);
     srand(getpid() * time(NULL)); // Para os números ficarem randômicos
 
     int PC = 0; // Contador de iterações (Program Counter)
@@ -41,7 +43,13 @@ int main()
         perror("shmat falhou");
         exit(EXIT_FAILURE);
     }
+    
     InfoProcesso* appAtual = encontrarAplicacaoPorPID(shm_processos, getpid());
+    
+    while (appAtual == NULL) // Caso não esteja escrito ainda o PID da Application
+    {
+        appAtual = encontrarAplicacaoPorPID(shm_processos, getpid());
+    }
 
     if (criaFIFO("FIFO_SYSCALL") < 0) {
         perror("Falha ao criar FIFO");
@@ -67,7 +75,7 @@ int main()
         // Probabilidade de 15% para a realização de uma syscall
         if (aux <= 15)
         {
-            if (aux % 2) Dx = D1;
+            if (aux <= 70) Dx = D1; // probabbilidade de 70% para chaammada de D1
             else Dx = D2;
 
             if (aux % 3 == 0) Op = R;
@@ -103,6 +111,7 @@ int main()
     printf("\nApplication com PID %d terminou sua execução\n", getpid());
     
     shmdt(shm_processos);
+    close(fifo_syscall);
 
     return 0;
 }
