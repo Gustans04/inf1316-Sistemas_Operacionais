@@ -5,6 +5,9 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <pthread.h>
+
+pthread_mutex_t mutex;
 
 int criaFIFO(const char* nomeFIFO)
 {
@@ -33,19 +36,23 @@ int abreFIFO(int* fifo, const char* nomeFIFO, int modo)
 
 InfoProcesso* encontrarAplicacaoPorPID(InfoProcesso *lista_processos, pid_t pid_desejado)
 {
+    pthread_mutex_lock(&mutex);
     for (int i = 0; i < NUM_APP; i++)
     {
         if (lista_processos[i].pid == pid_desejado)
         {
+            pthread_mutex_unlock(&mutex);
             return &lista_processos[i];
         }
     }
+    pthread_mutex_unlock(&mutex);
     return NULL;
 }
 
 int processosAcabaram(InfoProcesso *lista_processos)
 {
     int qtd_terminados = 0;
+    pthread_mutex_lock(&mutex);
     for (int i = 0; i < NUM_APP; i++)
     {
         if (lista_processos[i].estado == TERMINADO)
@@ -53,6 +60,7 @@ int processosAcabaram(InfoProcesso *lista_processos)
             qtd_terminados++;
         }
     }
+    pthread_mutex_unlock(&mutex);
     return qtd_terminados == NUM_APP;
 }
 
@@ -102,6 +110,7 @@ void print_status(InfoProcesso* processos)
     printf("---------------------------------------------------"
            "-----------------------------------------\n"); // Linha divisória
 
+    pthread_mutex_lock(&mutex);
     for (int i = 0; i < 5; i++) {
         char *estado_str = "-";
         char *dispositivo_str = "-";
@@ -137,4 +146,5 @@ void print_status(InfoProcesso* processos)
         printf("%-4d ",   processos[i].qtd_acessos[0]);
         printf("%-4d \n",  processos[i].qtd_acessos[1]);
     }
+    pthread_mutex_unlock(&mutex);
 }

@@ -2,6 +2,7 @@
 #define AUX_FUNC
 
 #include <sys/types.h>  // for pid_t
+#include <pthread.h> // for pthread_mutex_t
 
 // Códigos IPC para memória compartilhada
 #define IPC_CODE  1234
@@ -60,5 +61,7 @@ int estaVazia(FilaApps *fila);
 pid_t procuraNaFila(FilaApps *fila, pid_t pid_desejado);
 
 void print_status(InfoProcesso* processos);
+
+extern pthread_mutex_t mutex;
 
 #endif

@@ -66,7 +66,9 @@ int main()
     while (PC < MAX)
     {
         printf("\nApplication com PID %d rodando pela %dª vez\n", getpid(), ++PC);
+        pthread_mutex_lock(&mutex);
         appAtual->pc = PC;
+        pthread_mutex_unlock(&mutex);
 
         usleep(500000); // 500 milissegundos
 
@@ -104,9 +106,11 @@ int main()
 
         usleep(500000); // 500 milissegundos
     }
-    
+
+    pthread_mutex_lock(&mutex);
     appAtual->estado = TERMINADO;
     appAtual->executando = 0;
+    pthread_mutex_unlock(&mutex);
 
     printf("\nApplication com PID %d terminou sua execução\n", getpid());
     

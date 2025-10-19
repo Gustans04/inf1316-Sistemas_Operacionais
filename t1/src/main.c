@@ -93,6 +93,7 @@ int main()
             // Adiciona o pid da Application na fila de prontos
             inserirNaFila(prontos, pid_list[i]);
 
+            pthread_mutex_lock(&mutex);
             // Adiciona o pid da Application na struct de memória compartilhada
             shm_processos[i].pid = pid_list[i];
             shm_processos[i].pc = 0;
@@ -101,6 +102,7 @@ int main()
             shm_processos[i].operacao = -1;
             shm_processos[i].executando = 1;
             memset(shm_processos[i].qtd_acessos, 0, sizeof(shm_processos[i].qtd_acessos));
+            pthread_mutex_unlock(&mutex);
         }
     }
 
@@ -114,7 +116,10 @@ int main()
             perror("Falha ao enviar sinal SIGSTOP");
             exit(EXIT_FAILURE);
         }
+
+        pthread_mutex_lock(&mutex);
         shm_processos[i].executando = 0;
+        pthread_mutex_unlock(&mutex);
     }
 
     pid_t pidTemp = removerDaFila(prontos); // Pega o primeiro da fila de prontos
@@ -139,6 +144,7 @@ int main()
 
                 if (strncmp(ponteiro_msg, "IRQ0", 5) == 0)
                 {
+                    pthread_mutex_lock(&mutex);
                     if (appAtual->estado == EXECUTANDO || appAtual->estado == PRONTO)
                     {
                         if (appAtual->estado == EXECUTANDO) appAtual->estado = PRONTO;
@@ -151,6 +157,7 @@ int main()
                         }
                         inserirNaFila(prontos, appAtual->pid);
                     }
+                    pthread_mutex_unlock(&mutex);
 
                     // Verifica se há processos para escalonar
                     if (estaVazia(prontos))
@@ -164,8 +171,9 @@ int main()
                             appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
                             printf("aquii  tbmmmm!! %d\n", appAtual->estado);
                             printf("pid %d\n\n", pidTemp);
-                        } while (appAtual->estado != PRONTO);
+                        } while (appAtual->estado != PRONTO); // isso acessa o mutex
 
+                        pthread_mutex_lock(&mutex);
                         if (kill(appAtual->pid, SIGCONT) == -1)
                         {
                             perror("Falha ao enviar sinal SIGCONT (IRQ0)");
@@ -173,6 +181,7 @@ int main()
                         }
                         appAtual->estado = EXECUTANDO;
                         appAtual->executando = 1;
+                        pthread_mutex_unlock(&mutex);
                     }
                 }
                 
@@ -182,8 +191,10 @@ int main()
                     {
                         pid_t pidTemp = removerDaFila(esperandoD1);
                         InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                        pthread_mutex_lock(&mutex);
                         appPronto->estado = PRONTO;
                         inserirNaFila(prontos, appPronto->pid);
+                        pthread_mutex_unlock(&mutex);
                     }
                 }
                 
@@ -193,8 +204,10 @@ int main()
                     {
                         pid_t pidTemp = removerDaFila(esperandoD2);
                         InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                        pthread_mutex_lock(&mutex);
                         appPronto->estado = PRONTO;
                         inserirNaFila(prontos, appPronto->pid);
+                        pthread_mutex_unlock(&mutex);
                     }
                 }
 
@@ -218,6 +231,7 @@ int main()
             if (itensEncontrados == 3)
             {
                 InfoProcesso* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                pthread_mutex_lock(&mutex);
                 appBloqueado->estado = BLOQUEADO;
 
                 if (appBloqueado->executando) era_atual = 1;
@@ -251,6 +265,7 @@ int main()
                         appBloqueado->operacao = X;
                         break;
                 }
+                pthread_mutex_unlock(&mutex);
 
                 if (kill(pidTemp, SIGSTOP) == -1)
                 {
@@ -272,8 +287,9 @@ int main()
                             appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
                             printf("aquii  tbmmmm!! %d\n", appAtual->estado);
                             printf("pid %d\n\n", pidTemp);
-                        } while (appAtual->estado != PRONTO);
+                        } while (appAtual->estado != PRONTO); // isso acessa o mutex
 
+                        pthread_mutex_lock(&mutex);
                         if (kill(appAtual->pid, SIGCONT) == -1)
                         {
                             perror("Falha ao enviar sinal SIGCONT");
@@ -282,6 +298,7 @@ int main()
 
                         appAtual->estado = EXECUTANDO;
                         appAtual->executando = 1;
+                        pthread_mutex_unlock(&mutex);
                     }
                 }
             }

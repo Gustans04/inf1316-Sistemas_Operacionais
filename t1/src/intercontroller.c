@@ -112,10 +112,12 @@ void read_process_info(void) {
         exit(EXIT_FAILURE);
     }
 
+    pthread_mutex_lock(&mutex);
     // copia os dados da memória compartilhada para o array local
     for (int i = 0; i < NUM_APP; i++) {
         processos[i] = shm_processos[i];
     }
+    pthread_mutex_unlock(&mutex);
 
     // desconecta a memória compartilhada
     shmdt(shm_processos);
