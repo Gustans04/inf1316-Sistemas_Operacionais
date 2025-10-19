@@ -203,6 +203,7 @@ int main()
             pid_t pidTemp;
             int dxTemp;
             int opTemp;
+            int era_atual;
 
             int itensEncontrados = sscanf(buffer, "%d;%d;%d", &pidTemp, &dxTemp, &opTemp);
 
@@ -210,6 +211,8 @@ int main()
             {
                 appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
                 appAtual->estado = BLOQUEADO;
+                if (appAtual->executando) era_atual = 1;
+                else era_atual = 0;
                 appAtual->executando = 0;
 
                 switch (dxTemp)
@@ -245,9 +248,23 @@ int main()
                     exit(EXIT_FAILURE);
                 }
 
-                // Seleciona a próxima aplicação pronta
-                pidTemp = removerDaFila(prontos);
-                appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                if (era_atual)
+                {
+                    do {
+                        // Seleciona a próxima aplicação pronta
+                        pidTemp = removerDaFila(prontos);
+                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                    } while (appAtual->estado != PRONTO);
+
+                    // Reativa a próxima aplicação
+                    if (kill(appAtual->pid, SIGCONT) == -1)
+                    {
+                        perror("Falha ao enviar sinal SIGCONT");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    appAtual->estado = EXECUTANDO;
+                    appAtual->executando = 1;
             }
         }
     }
