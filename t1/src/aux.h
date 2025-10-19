@@ -25,6 +25,7 @@ typedef enum{
 typedef enum {
     PRONTO,
     EXECUTANDO,
+    ESPERANDO,
     BLOQUEADO,
     TERMINADO
 } EstadoProcesso;
@@ -39,7 +40,22 @@ typedef struct {
     int executando;
 } InfoProcesso;
 
+typedef struct {
+    pid_t lista[NUM_APP];
+    int inicio;
+    int fim;
+    int qtd;
+} FilaApps;
+
 int criaFIFO(const char* nomeFIFO);
 int abreFIFO(int* fifo, const char* nomeFIFO, int modo);
+
+InfoProcesso* encontrarAplicacaoPorPID(InfoProcesso *lista_processos, int tamanho, pid_t pid_desejado);
+
+void inicializarFila(FilaApps *fila);
+void inserirNaFila(FilaApps *fila, int valor);
+pid_t removerDaFila(FilaApps *fila);
+int estaVazia(FilaApps *fila);
+pid_t procuraNaFila(FilaApps *fila, int tamanho, pid_t pid_desejado);
 
 #endif

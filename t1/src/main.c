@@ -14,12 +14,14 @@
 
 int main() 
 {
-    int pid_list[NUM_APP];
-    int inter_pid;
+    pid_t pid_list[NUM_APP];
+    pid_t inter_pid;
 
     // Lista de processos esperando pelos dispositivos
-    int esperandoD1[NUM_APP];
-    int esperandoD2[NUM_APP];
+    FilaApps* esperandoD1 = (FilaApps* )malloc(sizeof(InfoProcesso));
+    FilaApps* esperandoD2 = (FilaApps* )malloc(sizeof(InfoProcesso));
+    inicializarFila(esperandoD1);
+    inicializarFila(esperandoD2);
     
     // aloca a memória compartilhada
     int segmento = shmget (IPC_CODE, sizeof (InfoProcesso) * NUM_APP, IPC_CREAT | S_IRUSR | S_IWUSR);
@@ -93,16 +95,65 @@ int main()
         exit(EXIT_FAILURE);
     }
 
+    for (int i = 1; i < NUM_APP; i++)
+    {
+        if (kill(pid_list[i], SIGSTOP) == -1)
+            {
+                perror("Falha ao enviar sinal SIGSTOP");
+                exit(EXIT_FAILURE);
+            }
+    }
+
+    InfoProcesso* appAtual; 
+    InfoProcesso* appProx; 
+    int atual = 0;
+    int proximo_indice = 1;
     while(1)
     {
-        char buffer[10];
+        char buffer[25];
 
         // Lê IRQs
-        ssize_t bytes_read = read(fifo_irq, buffer, sizeof(buffer));
+        ssize_t bytes_read = read(fifo_irq, buffer, sizeof(buffer) - 1); 
         if (bytes_read > 0) {
-            buffer[bytes_read] = '\0';
-            printf("Kernel recebeu: %s\n", buffer);
-            // Aqui você pode adicionar o tratamento das IRQs
+            buffer[bytes_read] = '\0'; 
+
+            char* ponteiro_msg = buffer; 
+
+            // Itera sobre o buffer ENQUANTO houver bytes para processar
+            // (Cada mensagem "IRQx\0" tem 5 bytes)
+            while (ponteiro_msg < buffer + bytes_read)
+            {
+                printf("Kernel recebeu: %s\n", ponteiro_msg);
+
+                if (strncmp(ponteiro_msg, "IRQ0", 5) == 0)
+                {
+                    appAtual = &shm_processos[atual];
+                    // ... (resto da sua lógica IRQ0) ...
+                    // ...
+                    appProx->estado = EXECUTANDO;
+                    appProx->executando = 1;
+                }
+                else if (strncmp(ponteiro_msg, "IRQ1", 5) == 0)
+                {
+                    if (!estaVazia(esperandoD1))
+                    {
+                        pid_t pidTemp = removerDaFila(esperandoD1);
+                        appAtual = encontrarAplicacaoPorPID(shm_processos, NUM_APP, pidTemp);
+                        appAtual->estado = ESPERANDO;
+                    }
+                }
+                else if (strncmp(ponteiro_msg, "IRQ2", 5) == 0)
+                {
+                    if (!estaVazia(esperandoD2))
+                    {
+                        pid_t pidTemp = removerDaFila(esperandoD2);
+                        appAtual = encontrarAplicacaoPorPID(shm_processos, NUM_APP, pidTemp);
+                        appAtual->estado = ESPERANDO;
+                    }
+                }
+
+                ponteiro_msg += 5;
+            }
         }
 
         // Lê SYSCALLs
@@ -110,11 +161,45 @@ int main()
         if (bytes_read > 0) {
             buffer[bytes_read] = '\0';
             printf("Kernel recebeu: %s\n", buffer);
-            // Aqui você pode adicionar o tratamento das SYSCALLs
+            
+            pid_t pidTemp;
+            int dxTemp;
+            int opTemp;
+
+            int itensEncontrados = sscanf(buffer, "%d;%d;%d", &pidTemp, &dxTemp, &opTemp);
+
+            if (itensEncontrados == 3)
+            {
+                appAtual = encontrarAplicacaoPorPID(shm_processos, NUM_APP, pidTemp);
+                appAtual->estado = BLOQUEADO;
+                appAtual->dispositivo = dxTemp;
+                appAtual->operacao = opTemp;
+                appAtual->executando = 0;
+
+                switch (dxTemp)
+                {
+                    case D1: 
+                        inserirNaFila(esperandoD1, pidTemp); 
+                        appAtual->qtd_acessos[0]++; 
+                        break;
+                    case D2: 
+                        inserirNaFila(esperandoD2, pidTemp); 
+                        appAtual->qtd_acessos[1]++; 
+                        break;
+                }
+
+                if (kill(pidTemp, SIGSTOP) == -1)
+                {
+                    perror("Falha ao enviar sinal SIGSTOP");
+                    exit(EXIT_FAILURE);
+                }
+            }
         }
     }
 
     for(int i = 0; i < NUM_APP + 1; i++) wait(NULL);
+
+    shmdt(shm_processos);
     
     return 0;
 }

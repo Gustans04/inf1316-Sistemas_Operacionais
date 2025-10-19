@@ -5,6 +5,9 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
 
 #include "aux.h"
 
@@ -23,6 +26,21 @@ int main()
 
     printf("\nApplication com PID %d inicializado\n", getpid());
 
+    // aloca a memória compartilhada
+    int segmento = shmget (IPC_CODE, sizeof (InfoProcesso) * NUM_APP, IPC_CREAT | S_IRUSR | S_IWUSR);
+    if (segmento == -1) {
+        perror("shmget falhou");
+        exit(EXIT_FAILURE);
+    }
+
+    // conecta a memória compartilhada
+    InfoProcesso* shm_processos = (InfoProcesso*) shmat (segmento, 0, 0);
+    if (shm_processos == (InfoProcesso*) -1) {
+        perror("shmat falhou");
+        exit(EXIT_FAILURE);
+    }
+    InfoProcesso* appAtual = encontrarAplicacaoPorPID(shm_processos, NUM_APP, getpid());
+
     if (criaFIFO("FIFO_SYSCALL") < 0) {
         perror("Falha ao criar FIFO");
         exit(EXIT_FAILURE);
@@ -38,6 +56,7 @@ int main()
     while (PC < MAX)
     {
         printf("\nApplication com PID %d rodando pela %dª vez\n", getpid(), ++PC);
+        appAtual->pc = PC;
 
         sleep(0.5);
 
@@ -68,11 +87,20 @@ int main()
             }
 
             // Realizar a syscall
+            char msg[12];
+            snprintf(msg, sizeof(msg), "%7d;%d;%d", getpid(), Dx, Op);
+            write(fifo_syscall, msg, 12);
         }
 
         sleep(0.5);
     }
+    
+    appAtual->estado = TERMINADO;
+    appAtual->executando = 0;
 
     printf("\nApplication com PID %d terminou sua execução\n", getpid());
+    
+    shmdt(shm_processos);
+
     return 0;
 }
