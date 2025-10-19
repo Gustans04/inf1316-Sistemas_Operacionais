@@ -1,3 +1,5 @@
+#define _DEFAULT_SOURCE
+
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -39,7 +41,7 @@ int main()
         perror("shmat falhou");
         exit(EXIT_FAILURE);
     }
-    InfoProcesso* appAtual = encontrarAplicacaoPorPID(shm_processos, NUM_APP, getpid());
+    InfoProcesso* appAtual = encontrarAplicacaoPorPID(shm_processos, getpid());
 
     if (criaFIFO("FIFO_SYSCALL") < 0) {
         perror("Falha ao criar FIFO");
@@ -58,12 +60,12 @@ int main()
         printf("\nApplication com PID %d rodando pela %dª vez\n", getpid(), ++PC);
         appAtual->pc = PC;
 
-        sleep(0.5);
+        usleep(500000); // 500 milissegundos
 
         aux = rand() % 100 + 1; // Gera um número entre 0 ou 100
         
         // Probabilidade de 15% para a realização de uma syscall
-        if (aux < 15)
+        if (aux <= 15)
         {
             if (aux % 2) Dx = D1;
             else Dx = D2;
@@ -92,7 +94,7 @@ int main()
             write(fifo_syscall, msg, 12);
         }
 
-        sleep(0.5);
+        usleep(500000); // 500 milissegundos
     }
     
     appAtual->estado = TERMINADO;

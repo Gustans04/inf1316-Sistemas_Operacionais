@@ -46,7 +46,7 @@ int main(void) {
             write(fifo, "IRQ1", 5); // Simula uma IRQ1
         }
 
-        if (valor_aleatorio < 50) { // 5% de chance de gerar uma IRQ2
+        if (valor_aleatorio < 5) { // 0,5% de chance de gerar uma IRQ2
             write(fifo, "IRQ2", 5); // Simula uma IRQ2
         }
     }
@@ -73,7 +73,7 @@ void print_status(void) {
         char *estado_str = "-";
         char *dispositivo_str = "-";
         char *operacao_str = "-";
-        char *executando_str = processos[i].executando ? "SIM" : "NÃO";
+        char *executando_str = processos[i].executando ? "SIM" : "NAO"; // Não sem acento para evitar problemas de padding
 
         switch (processos[i].estado) {
             case PRONTO:     estado_str = "PRONTO";     break;
@@ -100,7 +100,7 @@ void print_status(void) {
         printf("%-12s ",  estado_str);
         printf("%-12s ",  dispositivo_str);
         printf("%-10s ",  operacao_str);
-        printf("%-12s ",  executando_str);
+        printf("%-10s ",  executando_str);
         printf("%-4d ",   processos[i].qtd_acessos[0]);
         printf("%-4d \n",  processos[i].qtd_acessos[1]);
     }

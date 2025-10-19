@@ -50,12 +50,12 @@ typedef struct {
 int criaFIFO(const char* nomeFIFO);
 int abreFIFO(int* fifo, const char* nomeFIFO, int modo);
 
-InfoProcesso* encontrarAplicacaoPorPID(InfoProcesso *lista_processos, int tamanho, pid_t pid_desejado);
+InfoProcesso* encontrarAplicacaoPorPID(InfoProcesso *lista_processos, pid_t pid_desejado);
 
 void inicializarFila(FilaApps *fila);
 void inserirNaFila(FilaApps *fila, int valor);
 pid_t removerDaFila(FilaApps *fila);
 int estaVazia(FilaApps *fila);
-pid_t procuraNaFila(FilaApps *fila, int tamanho, pid_t pid_desejado);
+pid_t procuraNaFila(FilaApps *fila, pid_t pid_desejado);
 
 #endif
