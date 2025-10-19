@@ -1,0 +1,242 @@
+===============================================================
+RELATÓRIO: SIMULADOR DE KERNEL COM ESCALONAMENTO DE PROCESSOS
+Gustavo Rocha (2310505)
+Maria Luiza Dutra (2310509)
+===============================================================
+
+1. INTRODUÇÃO
+--------------
+Este relatório descreve a implementação de um simulador de kernel de sistema operacional que gerencia 5 processos de aplicação e simula operações de entrada/saída em 2 dispositivos  diferentes. O sistema implementa um escalonador preemptivo com time-sharing e gerencia chamadas de sistema (syscalls) para acesso aos dispositivos.
+
+O projeto é composto por três componentes principais:
+- KernelSim: Gerencia processos, atende chamadas de sistema e trata interrupções
+- InterControllerSim: Gera interrupções para time-slice e finalização de E/S
+- Applications (A1-A5): Processos que executam operações e fazem syscalls
+
+2. ARQUITETURA DO SISTEMA
+------------------------
+2.1 Estrutura Geral
+
+O sistema é organizado em diversos processos que se comunicam usando mecanismos de IPC:
+- 1 processo Kernel (main.c)
+- 1 processo InterController (intercontroller.c)
+- 5 processos Application (application.c)
+
+A comunicação entre os componentes ocorre via:
+- Memória compartilhada: para armazenar informações de contexto dos processos
+- FIFOs nomeadas: para simular interrupções (IRQs) e chamadas de sistema
+- Semáforos: para controle de acesso à memória compartilhada
+- Sinais UNIX: para controle de execução dos processos
+
+2.2 Estruturas de Dados
+
+O sistema utiliza as seguintes estruturas principais:
+- InfoProcesso: mantém informações de contexto de cada processo, incluindo:
+  * PID (identificador do processo)
+  * PC (program counter)
+  * Estado (PRONTO, EXECUTANDO, BLOQUEADO, TERMINADO)
+  * Dispositivo requisitado (D1 ou D2)
+  * Operação solicitada (R, W ou X)
+  * Quantidade de acessos a cada dispositivo
+  * Flag de execução
+
+- FilaApps: implementa filas para gerenciar processos em diferentes estados:
+  * Fila de processos prontos
+  * Fila de processos aguardando D1
+  * Fila de processos aguardando D2
+
+3. COMPONENTES DO SISTEMA
+------------------------
+3.1 Kernel (main.c)
+
+O Kernel é o processo central que:
+- Inicializa o ambiente (semáforos, memória compartilhada, FIFOs)
+- Cria os processos Application e o InterController
+- Mantém um escalonador que alterna entre processos prontos
+- Atende chamadas de sistema para acesso a dispositivos
+- Trata interrupções do InterController (IRQs)
+- Gerencia os estados dos processos
+
+Funcionamento:
+a) Inicialização:
+   - Cria semáforos para sincronização
+   - Aloca memória compartilhada para comunicação
+   - Cria FIFOs para IRQs e syscalls
+   - Cria o processo InterController
+   - Cria 5 processos Application e os coloca na fila de prontos
+   - Seleciona um processo para iniciar a execução
+
+b) Loop principal:
+   - Monitora FIFOs para receber IRQs e syscalls
+   - Processa interrupções:
+     * IRQ0 (TimeSlice): Preempta o processo atual e escalona outro
+     * IRQ1 (Dispositivo D1): Desbloqueia o primeiro processo esperando por D1
+     * IRQ2 (Dispositivo D2): Desbloqueia o primeiro processo esperando por D2
+   - Processa syscalls:
+     * Bloqueia o processo solicitante
+     * Registra qual dispositivo e operação foram requisitados
+     * Coloca o processo na fila correspondente
+     * Escalona um novo processo se necessário
+   - Verifica se todos os processos terminaram para encerrar o sistema
+   - Monitora e gerencia processos terminados
+
+3.2 InterController (intercontroller.c)
+
+O InterController é responsável por:
+- Gerar interrupções de timer (IRQ0) em intervalos regulares (500ms)
+- Gerar interrupções dos dispositivos (IRQ1, IRQ2) com probabilidades específicas
+- Exibir o estado dos processos quando recebe sinal SIGINT (Ctrl+C)
+
+Funcionamento:
+- Executa um loop infinito com sleep de 500ms
+- Envia IRQ0 (TimeSlice) a cada iteração
+- Envia IRQ1 com probabilidade P1 = 0.2 (20%)
+- Envia IRQ2 com probabilidade P2 = 0.01 (1%)
+- Trata sinais:
+  * SIGINT (Ctrl+C): Pausa os processos e exibe seus estados
+  * SIGUSR1: Finaliza o InterController quando o Kernel encerra
+  * SIGCONT: Retoma o InterController Sim e os demais processos
+
+3.3 Applications (application.c)
+
+Cada processo Application:
+- Executa um loop até MAX=5 iterações
+- Incrementa seu PC (Program Counter) a cada iteração
+- Realiza sleeps de 500ms no início e fim de cada iteração
+- Tem 15% de chance de realizar uma syscall a cada iteração
+- Seleciona aleatoriamente:
+  * Dispositivo (D1 ou D2)
+  * Operação (R=leitura, W=escrita, X=ambas)
+- Termina após MAX iterações e atualiza seu estado
+
+4. MECANISMOS DE SINCRONIZAÇÃO E COMUNICAÇÃO
+-------------------------------------------
+4.1 Memória Compartilhada
+
+Usada para armazenar informações de processos acessíveis por todos os componentes:
+- Cada posição armazena uma estrutura InfoProcesso
+- Mantém dados como PC, estado, dispositivo, operação, etc.
+- Permite que o Kernel e o InterController monitorem os processos
+
+4.2 FIFOs (Named Pipes)
+
+Implementam a comunicação assíncrona entre os componentes:
+- FIFO_IRQ: InterController → Kernel (transmite IRQ0, IRQ1, IRQ2)
+- FIFO_SYSCALL: Applications → Kernel (transmite solicitações de syscall)
+
+4.3 Semáforos
+
+Protegem o acesso concorrente à memória compartilhada:
+- Um semáforo nomeado (/t1_process_sem) controla o acesso
+- Funções auxiliares (sem_lock/unlock) encapsulam a lógica de semáforos
+- Usado sempre que há escrita/leitura na memória compartilhada
+
+4.4 Sinais UNIX
+
+Implementam o controle de execução dos processos:
+- SIGSTOP: suspende a execução de um processo
+- SIGCONT: retoma a execução de um processo suspenso / retoma o InterController Sim que foi interrompido
+- SIGINT: usado para pausar o sistema e exibir o status
+- SIGUSR1: sinaliza ao InterController para encerrar
+
+5. ALGORITMOS PRINCIPAIS
+----------------------
+5.1 Escalonamento
+
+O escalonador implementa uma política preemptiva por tempo:
+- Cada processo executa até receber IRQ0 (timer)
+- Ao ser preemptado, o processo atual é colocado na fila de prontos
+- Um novo processo é selecionado da fila de prontos
+- Se não houver processos prontos, o CPU fica ocioso
+
+5.2 Gestão de Dispositivos
+
+O gerenciamento de dispositivos de E/S:
+- Processos solicitam acesso a dispositivos via syscall(Dx, Op)
+- O processo é bloqueado e inserido na fila do dispositivo solicitado
+- Quando o InterController gera uma IRQ do dispositivo correspondente:
+  * O primeiro processo na fila é desbloqueado
+  * O estado do processo é alterado para PRONTO
+  * O processo é colocado na fila de prontos para ser escalonado
+
+5.3 Tratamento de Interrupções
+
+O tratamento de IRQs é implementado pelo Kernel:
+- IRQ0 (TimeSlice): preempta o processo atual e escalona outro
+- IRQ1: libera o primeiro processo aguardando pelo D1
+- IRQ2: libera o primeiro processo aguardando pelo D2
+
+6. FUNÇÕES AUXILIARES
+--------------------
+
+O módulo aux.c/aux.h implementa diversas funções auxiliares:
+- Gerenciamento de semáforos: init_sem(), sem_lock(), sem_unlock(), cleanup_sem()
+- Criação e gerenciamento de FIFOs: criaFIFO(), abreFIFO()
+- Funções para filas: inicializarFila(), inserirNaFila(), removerDaFila(), etc.
+- Busca de processos: encontrarAplicacaoPorPID(), processosAcabaram()
+- Exibição de status: print_status()
+
+7. FLUXO DE EXECUÇÃO DO SISTEMA
+------------------------------
+
+1. Inicialização:
+   - O Kernel inicia semáforos, memória compartilhada e FIFOs
+   - O Kernel cria o InterController e 5 processos Application
+   - Todos os processos são colocados na fila de prontos
+   - O Kernel coloca o primeiro processo em execução
+
+2. Operação normal:
+   a) O InterController gera IRQs periodicamente:
+      - IRQ0 a cada 500ms (time slice)
+      - IRQ1 e IRQ2 com probabilidades definidas
+
+   b) As Applications executam seu loop:
+      - Incrementam PC
+      - Podem gerar syscalls aleatoriamente
+      - Terminam após MAX iterações
+
+   c) O Kernel gerencia o sistema:
+      - Recebe e processa IRQs
+      - Atende syscalls
+      - Escalona processos conforme necessário
+      - Monitora o término dos processos
+
+3. Finalização:
+   - Quando todas as Applications terminam, o Kernel envia SIGUSR1 ao InterController
+   - O Kernel exibe o status final dos processos
+   - O sistema libera recursos (semáforos, memória compartilhada, FIFOs)
+
+8. ESTRUTURA DO PROJETO
+---------------------
+
+O projeto está organizado nos seguintes arquivos:
+- main.c: implementação do Kernel
+- intercontroller.c: implementação do InterController
+- application.c: implementação das Applications
+- aux.c/aux.h: funções e estruturas auxiliares
+- Makefile: scripts para compilação e execução
+
+Para compilar e executar o projeto:
+- make: compila todos os componentes
+- make run-all: executa o sistema completo
+- make clean: remove arquivos compilados e FIFOs
+- make rebuild: limpa e recompila o projeto
+
+Para interromper e retomar o InterController Sim:
+- CTRL-C ou kill -INT <pid>: interrompe todos os processos e faz o InterController Sim exibir o contexto das aplicações
+- kill -CONT <pid>: retoma o InterController Sim e todos os processos de onde pararam
+
+9. CONCLUSÃO
+-----------
+
+Este sistema implementa com sucesso um simulador de kernel que gerencia processos e dispositivos, demonstrando conceitos fundamentais de sistemas operacionais:
+
+- Escalonamento preemptivo e time-sharing
+- Comunicação e sincronização entre processos
+- Tratamento de interrupções
+- Gerenciamento de dispositivos de E/S
+- Chamadas de sistema
+- Troca de contexto
+
+O simulador permite visualizar na prática como esses mecanismos funcionam em conjunto para gerenciar recursos e processos em um sistema operacional, fornecendo um exemplo didático dos conceitos estudados na disciplina INF1316 - Sistemas Operacionais.
+
