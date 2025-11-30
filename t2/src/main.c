@@ -31,8 +31,8 @@ int main()
     inicializarFila(esperandoD1);
     inicializarFila(esperandoD2);
     inicializarFila(prontos);
-    inicializarFila(filaFiles);
-    inicializarFila(filaDirs);
+    inicializarFilaRequests(filaFiles);
+    inicializarFilaRequests(filaDirs);
     iniciaUdpClient();
 
     // aloca a memória compartilhada
@@ -268,6 +268,7 @@ int main()
                     wr.call.writecall.payload, 
                     wr.call.writecall.offset);
                 inserirNaFila(esperandoD1, pidTemp); // Simula espera pelo dispositivo D1
+                enviaUdpRequest(wr);
                 break;
             case 1: // ReadCall
                 // Processa a ReadCall aqui
@@ -285,6 +286,7 @@ int main()
                     rd.call.readcall.len,
                     rd.call.readcall.offset);
                 inserirNaFila(esperandoD1, pidTemp); // Simula espera pelo dispositivo D1
+                enviaUdpRequest(rd);
                 break;
             case 2: // AddCall
                 // Processa a AddCall aqui
@@ -303,6 +305,7 @@ int main()
                     dc.call.addcall.dirname, 
                     dc.call.addcall.len2);
                 inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
+                enviaUdpRequest(dc);
                 break;
             case 3: // RemCall
                 // Processa a RemCall aqui
@@ -321,6 +324,7 @@ int main()
                     dr.call.remcall.name, 
                     dr.call.remcall.len2);
                 inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
+                enviaUdpRequest(dr);
                 break;
             case 4: // ListDirCall
                 // Processa a ListDirCall aqui
@@ -335,6 +339,7 @@ int main()
                     dl.call.listdircall.path, 
                     dl.call.listdircall.len1);
                 inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
+                enviaUdpRequest(dl);
                 break;
             }
             
@@ -413,13 +418,14 @@ int main()
         CallRequest response;
         while((response = recebeUdpResponse()).tipo_syscall != -1) 
         {
-            printf("Kernel recebeu resposta UDP para o processo %d\n", response.owner);
+            printf("Kernel: recebeu resposta UDP para o processo %d\n", response.owner);
             sem_lock();
             if (response.tipo_syscall == 0 || response.tipo_syscall == 1) 
-                inserirNaFilaRequests(&filaFiles, response);
+                inserirNaFilaRequests(filaFiles, response);
             else if (response.tipo_syscall == 2 || response.tipo_syscall == 3 || response.tipo_syscall == 4)
-                inserirNaFilaRequests(&filaDirs, response);
+                inserirNaFilaRequests(filaDirs, response);
             sem_unlock();
+            printf("Kernel: resposta UDP enfileirada para o processo %d\n", response.owner);
         }
 
     }
@@ -435,7 +441,7 @@ int main()
     printf("Kernel terminou sua execução\n");
 
     printf("\n=== Tabela Final dos Processos ===\n");
-    // print_status(shm_processos);
+    print_status(shm_processos);
 
     shmdt(shm_processos);
     close(fifo_irq);

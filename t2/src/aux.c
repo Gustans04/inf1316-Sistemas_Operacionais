@@ -247,32 +247,21 @@ void iniciaUdpClient(void)
 
 void enviaUdpRequest(CallRequest request) 
 {
-    int sockfd, n;
+    int n;
     int serverlen;
     int buflen = sizeof(CallRequest);
     char buf[buflen];
 
-    /* get a message from the user */
+    /* serialize the request */
     bzero(buf, buflen);
-    printf("Please enter msg: ");
-    fgets(buf, buflen, stdin);
+    memcpy(buf, &request, sizeof(CallRequest));
 
     /* send the message to the server */
     serverlen = sizeof(serveraddr);
-    n = sendto(sockfd, buf, strlen(buf), 0, &serveraddr, serverlen);
+    n = sendto(sockfd, buf, sizeof(CallRequest), 0, &serveraddr, serverlen);
     if (n < 0) 
       error("ERROR in sendto");
 
-    // /* serialize the request */
-    // memcpy(buf, &request, sizeof(CallRequest));
-
-    // /* send the message to the server */
-    // serverlen = sizeof(serveraddr);
-    // n = sendto(sockfd, buf, sizeof(CallRequest), 0, &serveraddr, serverlen);
-    // if (n < 0) 
-    //   error("ERROR in sendto");
-
-    // close(sockfd);
 }
 
 CallRequest recebeUdpResponse(void) 
@@ -283,13 +272,17 @@ CallRequest recebeUdpResponse(void)
     char buf[buflen];
     CallRequest response;
 
+    // Initialize response structure to safe values
+    memset(&response, 0, sizeof(CallRequest));
+    response.tipo_syscall = -1;  // Indicates no valid response
+    response.owner = -1;
+
     /* receive the server's reply */
     serverlen = sizeof(serveraddr);
     bzero(buf, buflen);
     n = recvfrom(sockfd, buf, sizeof(CallRequest), MSG_DONTWAIT, &serveraddr, &serverlen);
     if (n < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            response.tipo_syscall = -1;
             return response; // No response available
         } else {
             error("ERROR in recvfrom");

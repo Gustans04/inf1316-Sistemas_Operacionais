@@ -111,7 +111,7 @@ int main()
                 // Preencher os dados da ListDirCall
                 snprintf(appAtual->syscall.call.listdircall.path, sizeof(appAtual->syscall.call.listdircall.path), "dir_list_%d", getpid());
                 appAtual->syscall.call.listdircall.len1 = strlen(appAtual->syscall.call.listdircall.path);
-                appAtual->syscall.call.listdircall.nrnames = &(int){0}; // Inicializa o número de nomes encontrados como 0
+                appAtual->syscall.call.listdircall.nrnames = 0; // Inicializa o número de nomes encontrados como 0
                 break;
             }
             sem_unlock();
