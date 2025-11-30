@@ -1,5 +1,3 @@
-#define _DEFAULT_SOURCE
-
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
