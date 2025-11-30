@@ -229,127 +229,161 @@ int main()
         sem_lock();
         int syscall = appAtual->syscall.tipo_syscall;
         sem_unlock();
-        if (syscall >= 0) {
-            printf("Kernel: Recebeu SysCall do PID %d: ", appAtual->pid);
+        if (syscall >= 0) {            
+            pid_t pidTemp = appAtual->pid;
+            int era_atual;
+            int owner = numeroDoProcesso(shm_processos, pidTemp);
+
+            InfoProcesso* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+            sem_lock();
+            appBloqueado->estado = BLOQUEADO;
+            removerTodasOcorrencias(prontos, pidTemp);
+
+            if (appBloqueado->executando) era_atual = 1;
+            else era_atual = 0;
+
+            appBloqueado->executando = 0;
+
             switch (syscall)
             {
             case 0: // WriteCall
-                sem_lock();
-                printf("write(%s, %s, %d)\n", 
-                    appAtual->syscall.call.writecall.path, 
-                    appAtual->syscall.call.writecall.payload, 
-                    appAtual->syscall.call.writecall.offset);
                 appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
-                sem_unlock();
                 // Processa a WriteCall aqui
+                CallRequest wr;
+                wr.tipo_syscall = 0;
+                wr.owner = owner;
+                snprintf(wr.call.writecall.path, sizeof(wr.call.writecall.path), "/A%d/%s", owner, appAtual->syscall.call.writecall.path);
+                wr.call.writecall.len = appAtual->syscall.call.writecall.len;
+                snprintf(wr.call.writecall.payload, sizeof(wr.call.writecall.payload), "%s", appAtual->syscall.call.writecall.payload);
+                wr.call.writecall.offset = appAtual->syscall.call.writecall.offset;
+                // Simula a escrita no arquivo
+                printf("Kernel: WR-REQ, %d, %s, %d, %s, %d\n", 
+                    wr.owner, 
+                    wr.call.writecall.path, 
+                    wr.call.writecall.len,
+                    wr.call.writecall.payload, 
+                    wr.call.writecall.offset);
+                inserirNaFila(esperandoD1, pidTemp); // Simula espera pelo dispositivo D1
                 break;
             case 1: // ReadCall
-                sem_lock();
-                printf("read(%s, buffer, %d)\n", 
-                    appAtual->syscall.call.readcall.path, 
-                    appAtual->syscall.call.readcall.offset);
                 appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
-                sem_unlock();
                 // Processa a ReadCall aqui
+                CallRequest rd;
+                rd.tipo_syscall = 1;
+                rd.owner = owner;
+                snprintf(rd.call.readcall.path, sizeof(rd.call.readcall.path), "/A%d/%s", owner, appAtual->syscall.call.readcall.path);
+                rd.call.readcall.len = appAtual->syscall.call.readcall.len;
+                memset(rd.call.readcall.buffer, 0, sizeof(rd.call.readcall.buffer));
+                rd.call.readcall.offset = appAtual->syscall.call.readcall.offset;
+                // Simula a leitura no arquivo
+                printf("Kernel: RD-REQ, %d, %s, %d, buffer[], %d\n", 
+                    rd.owner, 
+                    rd.call.readcall.path, 
+                    rd.call.readcall.len,
+                    rd.call.readcall.offset);
+                inserirNaFila(esperandoD1, pidTemp); // Simula espera pelo dispositivo D1
                 break;
             case 2: // AddCall
-                sem_lock();
-                printf("add(%s, %d, %s, %d)\n", 
-                    appAtual->syscall.call.addcall.path, 
-                    appAtual->syscall.call.addcall.len1,
-                    appAtual->syscall.call.addcall.dirname,
-                    appAtual->syscall.call.addcall.len2);
                 appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
-                sem_unlock();
                 // Processa a AddCall aqui
+                CallRequest dc;
+                dc.tipo_syscall = 2;
+                dc.owner = owner;
+                snprintf(dc.call.addcall.path, sizeof(dc.call.addcall.path), "/A%d/%s", owner, appAtual->syscall.call.addcall.path);
+                dc.call.addcall.len1 = appAtual->syscall.call.addcall.len1;
+                snprintf(dc.call.addcall.dirname, sizeof(dc.call.addcall.dirname), "%s", appAtual->syscall.call.addcall.dirname);
+                dc.call.addcall.len2 = appAtual->syscall.call.addcall.len2;
+                // Simula a criação do diretório
+                printf("Kernel: DC-REQ, %d, %s, %d, %s, %d\n", 
+                    dc.owner, 
+                    dc.call.addcall.path, 
+                    dc.call.addcall.len1,
+                    dc.call.addcall.dirname, 
+                    dc.call.addcall.len2);
+                inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
                 break;
             case 3: // RemCall
-                sem_lock();
-                printf("rem(%s, %d, %s, %d)\n", 
-                    appAtual->syscall.call.remcall.path, 
-                    appAtual->syscall.call.remcall.len1,
-                    appAtual->syscall.call.remcall.name,
-                    appAtual->syscall.call.remcall.len2);
                 appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
-                sem_unlock();
                 // Processa a RemCall aqui
+                CallRequest dr;
+                dr.tipo_syscall = 3;
+                dr.owner = owner;
+                snprintf(dr.call.remcall.path, sizeof(dr.call.remcall.path), "/A%d/%s", owner, appAtual->syscall.call.remcall.path);
+                dr.call.remcall.len1 = appAtual->syscall.call.remcall.len1;
+                snprintf(dr.call.remcall.name, sizeof(dr.call.remcall.name), "%s", appAtual->syscall.call.remcall.name);
+                dr.call.remcall.len2 = appAtual->syscall.call.remcall.len2;
+                // Simula a remoção do arquivo ou diretório
+                printf("Kernel: DR-REQ, %d, %s, %d, %s, %d\n", 
+                    dr.owner, 
+                    dr.call.remcall.path, 
+                    dr.call.remcall.len1,
+                    dr.call.remcall.name, 
+                    dr.call.remcall.len2);
+                inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
                 break;
             case 4: // ListDirCall
-                sem_lock();
-                printf("listdir(%s, %d, alldirInfo[], fstlstpositions[40], &nrnames)\n", 
-                    appAtual->syscall.call.listdircall.path,
-                    appAtual->syscall.call.listdircall.len1);
                 appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
-                sem_unlock();
                 // Processa a ListDirCall aqui
+                CallRequest dl;
+                dl.tipo_syscall = 4;
+                dl.owner = owner;
+                snprintf(dl.call.listdircall.path, sizeof(dl.call.listdircall.path), "/A%d/%s", owner, appAtual->syscall.call.listdircall.path);
+                dl.call.listdircall.len1 = appAtual->syscall.call.listdircall.len1;
+                // Simula a listagem do diretório
+                printf("Kernel: DL-REQ, %d, %s, %d\n", 
+                    dl.owner, 
+                    dl.call.listdircall.path, 
+                    dl.call.listdircall.len1);
+                inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
                 break;
             }
             
-            pid_t pidTemp;
-            int era_atual;
+            sem_unlock();
 
-            /*
-            if (itensEncontrados == 3)
+            if (kill(pidTemp, SIGSTOP) == -1)
             {
-                InfoProcesso2* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                sem_lock();
-                appBloqueado->estado = BLOQUEADO;
-                removerTodasOcorrencias(prontos, pidTemp);
+                perror("Falha ao enviar sinal SIGSTOP");
+                exit(EXIT_FAILURE);
+            }
 
-                if (appBloqueado->executando) era_atual = 1;
-                else era_atual = 0;
-
-                appBloqueado->executando = 0;
-
-                
-                sem_unlock();
-
-                if (kill(pidTemp, SIGSTOP) == -1)
+            if (era_atual)
+            {
+                int proximo_encontrado = 0;
+                while (!estaVazia(prontos))
                 {
-                    perror("Falha ao enviar sinal SIGSTOP");
-                    exit(EXIT_FAILURE);
+                    pidTemp = removerDaFila(prontos);
+                    appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+
+                    // pula qualquer PID que não exista mais ou já tenha TERMINADO
+                    if (!appAtual || appAtual->estado == TERMINADO || kill(pidTemp, 0) == -1) {
+                        removerTodasOcorrencias(prontos, pidTemp); 
+                        continue; 
+                    }
+
+                    printf("Kernel: Verificando PID %d da fila [Estado: %d]\n", pidTemp, appAtual->estado);
+
+                    if (appAtual->estado == PRONTO)
+                    {
+                        printf("Kernel: Escalonando PID %d\n", appAtual->pid);
+                        sem_lock();
+                        if (kill(appAtual->pid, SIGCONT) == -1)
+                        {
+                            perror("Falha ao enviar sinal SIGCONT (SYSCALL)");
+                            exit(EXIT_FAILURE);
+                        }
+                        appAtual->estado = EXECUTANDO;
+                        appAtual->executando = 1;
+                        proximo_encontrado = 1;
+                        sem_unlock();
+                        break; 
+                    }
+                    printf("Kernel: Ignorando PID %d (estado nao eh PRONTO)\n", pidTemp);
                 }
 
-                if (era_atual)
-                {
-                    int proximo_encontrado = 0;
-                    while (!estaVazia(prontos))
-                    {
-                        pidTemp = removerDaFila(prontos);
-                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-
-                        // pula qualquer PID que não exista mais ou já tenha TERMINADO
-                        if (!appAtual || appAtual->estado == TERMINADO || kill(pidTemp, 0) == -1) {
-                            removerTodasOcorrencias(prontos, pidTemp); 
-                            continue; 
-                        }
-
-                        printf("Kernel: Verificando PID %d da fila [Estado: %d]\n", pidTemp, appAtual->estado);
-
-                        if (appAtual->estado == PRONTO)
-                        {
-                            printf("Kernel: Escalonando PID %d\n", appAtual->pid);
-                            sem_lock();
-                            if (kill(appAtual->pid, SIGCONT) == -1)
-                            {
-                                perror("Falha ao enviar sinal SIGCONT (SYSCALL)");
-                                exit(EXIT_FAILURE);
-                            }
-                            appAtual->estado = EXECUTANDO;
-                            appAtual->executando = 1;
-                            proximo_encontrado = 1;
-                            sem_unlock();
-                            break; 
-                        }
-                        printf("Kernel: Ignorando PID %d (estado nao eh PRONTO)\n", pidTemp);
-                    }
-
-                    if (!proximo_encontrado) {
-                        printf("Kernel: Fila de prontos ficou vazia\n");
-                    }
+                if (!proximo_encontrado) {
+                    printf("Kernel: Fila de prontos ficou vazia\n");
                 }
             }
-            */
         }
 
         if (processosAcabaram(shm_processos))

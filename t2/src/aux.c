@@ -155,6 +155,19 @@ pid_t procuraNaFila(FilaApps *f, pid_t pid_desejado)
     return -1;
 }
 
+int numeroDoProcesso(InfoProcesso* processos, pid_t pid) 
+{
+    sem_lock();
+    for (int i = 0; i < NUM_APP; i++) {
+        if (processos[i].pid == pid) {
+            sem_unlock();
+            return i + 1;
+        }
+    }
+    sem_unlock();
+    return -1; // PID não encontrado
+}
+
 
 // void print_status(InfoProcesso* processos) 
 // {

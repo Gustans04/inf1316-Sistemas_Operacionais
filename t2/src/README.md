@@ -1,4 +1,3 @@
-```markdown
 # Trabalho 1 — INF1316 Sistemas Operacionais
 
 ## Visão Geral

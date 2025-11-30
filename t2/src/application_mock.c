@@ -65,7 +65,7 @@ int main()
         aux = rand() % 100; // Gera um número aleatório
         
         // Probabilidade de 15% para a realização de uma syscall
-        if (aux <= 15)
+        if (aux <= 50)
         {
             printf("Application com PID %d preparando uma SysCall\n", getpid());
             // Decide qual syscall será realizada
@@ -79,6 +79,7 @@ int main()
                 printf("Application com PID %d realizando WriteCall\n", getpid());
                 // Preencher os dados da WriteCall
                 snprintf(appAtual->syscall.call.writecall.path, sizeof(appAtual->syscall.call.writecall.path), "file_write_%d.txt", getpid());
+                appAtual->syscall.call.writecall.len = strlen(appAtual->syscall.call.writecall.path);
                 snprintf(appAtual->syscall.call.writecall.payload, sizeof(appAtual->syscall.call.writecall.payload), "Data from %d", getpid());
                 appAtual->syscall.call.writecall.offset = (rand() % 5) * 16; // Offset aleatório múltiplo de 16
                 break;
@@ -86,6 +87,7 @@ int main()
                 printf("Application com PID %d realizando ReadCall\n", getpid());
                 // Preencher os dados da ReadCall
                 snprintf(appAtual->syscall.call.readcall.path, sizeof(appAtual->syscall.call.readcall.path), "file_read_%d.txt", getpid());
+                appAtual->syscall.call.readcall.len = strlen(appAtual->syscall.call.readcall.path);
                 memset(appAtual->syscall.call.readcall.buffer, 0, sizeof(appAtual->syscall.call.readcall.buffer));
                 appAtual->syscall.call.readcall.offset = (rand() % 5) * 16; // Offset aleatório múltiplo de 16
                 break;
