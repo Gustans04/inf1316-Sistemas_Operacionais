@@ -28,7 +28,7 @@ int main(void) {
     srand(time(NULL));
     
     // Abrir o semáforo existente para uso neste processo
-    process_sem = sem_open("/t1_process_sem", 0);
+    process_sem = sem_open("/t2_process_sem", 0);
 
     signal(SIGINT, ctrlC_handler);
     signal(SIGUSR1, finalizar);
@@ -73,8 +73,8 @@ void finalizar(int signum)
 void ctrlC_handler(int signum) {
     (void)signum; // remove warning
     printf("\n=== InterController PAUSADO ===\n");
-    read_process_info();
-    print_status(processos);
+    // read_process_info();
+    // print_status(processos);
 
     // Para todos os processos
     for (int i = 0; i < NUM_APP; i++) {
@@ -105,28 +105,28 @@ void ctrlC_handler(int signum) {
     signal(SIGINT, ctrlC_handler);
 }
 
-void read_process_info(void) {
-    // aloca a memória compartilhada
-    int segmento = shmget (IPC_CODE, sizeof (processos), IPC_CREAT | S_IRUSR | S_IWUSR);
-    if (segmento == -1) {
-        perror("shmget falhou");
-        exit(EXIT_FAILURE);
-    }
+// void read_process_info(void) {
+//     // aloca a memória compartilhada
+//     int segmento = shmget (IPC_CODE, sizeof (processos), IPC_CREAT | S_IRUSR | S_IWUSR);
+//     if (segmento == -1) {
+//         perror("shmget falhou");
+//         exit(EXIT_FAILURE);
+//     }
 
-    // conecta a memória compartilhada
-    InfoProcesso* shm_processos = (InfoProcesso*) shmat (segmento, 0, 0);
-    if (shm_processos == (InfoProcesso*) -1) {
-        perror("shmat falhou");
-        exit(EXIT_FAILURE);
-    }
+//     // conecta a memória compartilhada
+//     InfoProcesso* shm_processos = (InfoProcesso*) shmat (segmento, 0, 0);
+//     if (shm_processos == (InfoProcesso*) -1) {
+//         perror("shmat falhou");
+//         exit(EXIT_FAILURE);
+//     }
 
-    sem_lock();
-    // copia os dados da memória compartilhada para o array local
-    for (int i = 0; i < NUM_APP; i++) {
-        processos[i] = shm_processos[i];
-    }
-    sem_unlock();
+//     sem_lock();
+//     // copia os dados da memória compartilhada para o array local
+//     for (int i = 0; i < NUM_APP; i++) {
+//         processos[i] = shm_processos[i];
+//     }
+//     sem_unlock();
 
-    // desconecta a memória compartilhada
-    shmdt(shm_processos);
-}
+//     // desconecta a memória compartilhada
+//     shmdt(shm_processos);
+// }

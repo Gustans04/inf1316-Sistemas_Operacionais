@@ -46,22 +46,16 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    if (criaFIFO("FIFO_IRQ") < 0 || criaFIFO("FIFO_SYSCALL") < 0) {
+    if (criaFIFO("FIFO_IRQ") < 0) {
         perror("Falha ao criar FIFOs");
         exit(EXIT_FAILURE);
     }
 
-    int fifo_irq, fifo_syscall;
+    int fifo_irq;
 
     // O Kernel simplesmente lê o que for escrito na FIFO pelo InterController
     if (abreFIFO(&fifo_irq, "FIFO_IRQ", O_RDONLY | O_NONBLOCK) < 0) {
         perror("Falha ao abrir FIFO de IRQs");
-        exit(EXIT_FAILURE);
-    }
-
-    // O Kernel simplesmente lê o que for escrito na FIFO pelas Applications
-    if (abreFIFO(&fifo_syscall, "FIFO_SYSCALL", O_RDONLY | O_NONBLOCK) < 0) {
-        perror("Falha ao abrir FIFO de SYSCALLs");
         exit(EXIT_FAILURE);
     }
 
@@ -102,10 +96,8 @@ int main()
             shm_processos[i].pid = pid_list[i];
             shm_processos[i].pc = 0;
             shm_processos[i].estado = PRONTO;
-            shm_processos[i].dispositivo = -1;
-            shm_processos[i].operacao = -1;
+            shm_processos[i].syscall.tipo_syscall = -1;
             shm_processos[i].executando = 1;
-            memset(shm_processos[i].qtd_acessos, 0, sizeof(shm_processos[i].qtd_acessos));
             sem_unlock();
         }
     }
@@ -234,21 +226,72 @@ int main()
         }
 
         // Lê SYSCALLs
-        bytes_read = read(fifo_syscall, buffer, sizeof(buffer));
-        if (bytes_read > 0) {
-            buffer[bytes_read] = '\0';
-            printf("Kernel recebeu: %s\n", buffer);
+        sem_lock();
+        int syscall = appAtual->syscall.tipo_syscall;
+        sem_unlock();
+        if (syscall >= 0) {
+            printf("Kernel: Recebeu SysCall do PID %d: ", appAtual->pid);
+            switch (syscall)
+            {
+            case 0: // WriteCall
+                sem_lock();
+                printf("write(%s, %s, %d)\n", 
+                    appAtual->syscall.call.writecall.path, 
+                    appAtual->syscall.call.writecall.payload, 
+                    appAtual->syscall.call.writecall.offset);
+                appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
+                sem_unlock();
+                // Processa a WriteCall aqui
+                break;
+            case 1: // ReadCall
+                sem_lock();
+                printf("read(%s, buffer, %d)\n", 
+                    appAtual->syscall.call.readcall.path, 
+                    appAtual->syscall.call.readcall.offset);
+                appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
+                sem_unlock();
+                // Processa a ReadCall aqui
+                break;
+            case 2: // AddCall
+                sem_lock();
+                printf("add(%s, %d, %s, %d)\n", 
+                    appAtual->syscall.call.addcall.path, 
+                    appAtual->syscall.call.addcall.len1,
+                    appAtual->syscall.call.addcall.dirname,
+                    appAtual->syscall.call.addcall.len2);
+                appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
+                sem_unlock();
+                // Processa a AddCall aqui
+                break;
+            case 3: // RemCall
+                sem_lock();
+                printf("rem(%s, %d, %s, %d)\n", 
+                    appAtual->syscall.call.remcall.path, 
+                    appAtual->syscall.call.remcall.len1,
+                    appAtual->syscall.call.remcall.name,
+                    appAtual->syscall.call.remcall.len2);
+                appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
+                sem_unlock();
+                // Processa a RemCall aqui
+                break;
+            case 4: // ListDirCall
+                sem_lock();
+                printf("listdir(%s, %d, alldirInfo[], fstlstpositions[40], &nrnames)\n", 
+                    appAtual->syscall.call.listdircall.path,
+                    appAtual->syscall.call.listdircall.len1);
+                appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
+                sem_unlock();
+                // Processa a ListDirCall aqui
+                break;
+            }
             
             pid_t pidTemp;
-            int dxTemp;
-            int opTemp;
             int era_atual;
 
-            int itensEncontrados = sscanf(buffer, "%d;%d;%d", &pidTemp, &dxTemp, &opTemp);
-
+            /*
             if (itensEncontrados == 3)
             {
-                InfoProcesso* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                InfoProcesso2* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
                 sem_lock();
                 appBloqueado->estado = BLOQUEADO;
                 removerTodasOcorrencias(prontos, pidTemp);
@@ -258,32 +301,7 @@ int main()
 
                 appBloqueado->executando = 0;
 
-                switch (dxTemp)
-                {
-                    case D1: 
-                        appBloqueado->dispositivo = D1;
-                        inserirNaFila(esperandoD1, pidTemp);
-                        appBloqueado->qtd_acessos[0]++; 
-                        break;
-                    case D2: 
-                        appBloqueado->dispositivo = D2;
-                        inserirNaFila(esperandoD2, pidTemp);
-                        appBloqueado->qtd_acessos[1]++;
-                        break;
-                }
-
-                switch (opTemp)
-                {
-                    case R:
-                        appBloqueado->operacao = R;
-                        break;
-                    case W:
-                        appBloqueado->operacao = W;
-                        break;
-                    case X:
-                        appBloqueado->operacao = X;
-                        break;
-                }
+                
                 sem_unlock();
 
                 if (kill(pidTemp, SIGSTOP) == -1)
@@ -331,6 +349,7 @@ int main()
                     }
                 }
             }
+            */
         }
 
         if (processosAcabaram(shm_processos))
@@ -344,7 +363,7 @@ int main()
         pid_t app;
         while ((app = waitpid(-1, &status, WNOHANG)) > 0) 
         {
-            InfoProcesso *processo = encontrarAplicacaoPorPID(shm_processos, app);
+            InfoProcesso* processo = encontrarAplicacaoPorPID(shm_processos, app);
             sem_lock();
             if (processo) {
                 processo->estado = TERMINADO;
@@ -369,11 +388,10 @@ int main()
     printf("Kernel terminou sua execução\n");
 
     printf("\n=== Tabela Final dos Processos ===\n");
-    print_status(shm_processos);
+    // print_status(shm_processos);
 
     shmdt(shm_processos);
     close(fifo_irq);
-    close(fifo_syscall);
     
     // Cleanup semaphore
     cleanup_sem();
