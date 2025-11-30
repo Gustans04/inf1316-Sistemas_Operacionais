@@ -7,8 +7,17 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h> 
+#include <errno.h>
 
 sem_t *process_sem;
+char hostname[10] = "localhost";
+int portno = 3000; // Porta padrão do servidor UDP
+struct sockaddr_in serveraddr;
+int sockfd;
 
 void init_sem(void) {
     // Remove any existing semaphore
@@ -205,4 +214,117 @@ void print_status(InfoProcesso* processos)
         printf("%-10s\n",  executando_str);
     }
     sem_unlock();
+}
+
+void error(char *msg) {
+    perror(msg);
+    exit(0);
+}
+
+void iniciaUdpClient(void)
+{
+    struct hostent *server;
+
+    /* socket: create the socket */
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) 
+        error("ERROR opening socket");
+
+    /* gethostbyname: get the server's DNS entry */
+    server = gethostbyname(hostname);
+    if (server == NULL) {
+        fprintf(stderr,"ERROR, no such host as %s\n", hostname);
+        exit(0);
+    }
+
+    /* build the server's Internet address */
+    bzero((char *) &serveraddr, sizeof(serveraddr));
+    serveraddr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, 
+	  (char *)&serveraddr.sin_addr.s_addr, server->h_length);
+    serveraddr.sin_port = htons(portno);
+}
+
+void enviaUdpRequest(CallRequest request) 
+{
+    int sockfd, n;
+    int serverlen;
+    int buflen = sizeof(CallRequest);
+    char buf[buflen];
+
+    /* get a message from the user */
+    bzero(buf, buflen);
+    printf("Please enter msg: ");
+    fgets(buf, buflen, stdin);
+
+    /* send the message to the server */
+    serverlen = sizeof(serveraddr);
+    n = sendto(sockfd, buf, strlen(buf), 0, &serveraddr, serverlen);
+    if (n < 0) 
+      error("ERROR in sendto");
+
+    // /* serialize the request */
+    // memcpy(buf, &request, sizeof(CallRequest));
+
+    // /* send the message to the server */
+    // serverlen = sizeof(serveraddr);
+    // n = sendto(sockfd, buf, sizeof(CallRequest), 0, &serveraddr, serverlen);
+    // if (n < 0) 
+    //   error("ERROR in sendto");
+
+    // close(sockfd);
+}
+
+CallRequest recebeUdpResponse(void) 
+{
+    int n;
+    int serverlen;
+    int buflen = sizeof(CallRequest);
+    char buf[buflen];
+    CallRequest response;
+
+    /* receive the server's reply */
+    serverlen = sizeof(serveraddr);
+    bzero(buf, buflen);
+    n = recvfrom(sockfd, buf, sizeof(CallRequest), MSG_DONTWAIT, &serveraddr, &serverlen);
+    if (n < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            response.tipo_syscall = -1;
+            return response; // No response available
+        } else {
+            error("ERROR in recvfrom");
+        }
+    }
+
+    memcpy(&response, buf, sizeof(CallRequest));
+
+    return response;
+}
+
+void encerraUdpClient(void)
+{
+    close(sockfd);
+}
+
+void inicializarFilaRequests(FilaRequests *fila) 
+{
+    fila->inicio = 0;
+    fila->fim = 0;
+    fila->qtd = 0;
+}
+
+void inserirNaFilaRequests(FilaRequests *f, CallRequest request) 
+{
+    if (f->qtd == NUM_APP) return; 
+    if (owner_na_fila(f, request.owner)) return; // evita duplicata
+    f->lista[(f->inicio + f->qtd) % NUM_APP] = request;
+    f->qtd++;
+}
+
+int owner_na_fila(FilaRequests *f, int owner) 
+{
+    for (int i = 0, idx = f->inicio; i < f->qtd; i++, idx = (idx + 1) % NUM_APP) {
+        if (f->lista[idx].owner == owner) return 1;
+    }
+    return 0;
 }

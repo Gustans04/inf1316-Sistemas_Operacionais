@@ -26,9 +26,14 @@ int main()
     FilaApps* esperandoD1 = (FilaApps* )malloc(sizeof(FilaApps));
     FilaApps* esperandoD2 = (FilaApps* )malloc(sizeof(FilaApps));
     FilaApps* prontos = (FilaApps* )malloc(sizeof(FilaApps));
+    FilaRequests* filaFiles = (FilaRequests* )malloc(sizeof(FilaRequests));
+    FilaRequests* filaDirs = (FilaRequests* )malloc(sizeof(FilaRequests));
     inicializarFila(esperandoD1);
     inicializarFila(esperandoD2);
     inicializarFila(prontos);
+    inicializarFila(filaFiles);
+    inicializarFila(filaDirs);
+    iniciaUdpClient();
 
     // aloca a memória compartilhada
     int segmento = shmget (IPC_CODE, sizeof (InfoProcesso) * NUM_APP, IPC_CREAT | S_IRUSR | S_IWUSR);
@@ -404,6 +409,19 @@ int main()
             removerTodasOcorrencias(esperandoD2, app);
         }
 
+        // Lê resposta do UDP (se houver)
+        CallRequest response;
+        while((response = recebeUdpResponse()).tipo_syscall != -1) 
+        {
+            printf("Kernel recebeu resposta UDP para o processo %d\n", response.owner);
+            sem_lock();
+            if (response.tipo_syscall == 0 || response.tipo_syscall == 1) 
+                inserirNaFilaRequests(&filaFiles, response);
+            else if (response.tipo_syscall == 2 || response.tipo_syscall == 3 || response.tipo_syscall == 4)
+                inserirNaFilaRequests(&filaDirs, response);
+            sem_unlock();
+        }
+
     }
 
     if (kill(inter_pid, SIGUSR1) == -1)
@@ -421,6 +439,7 @@ int main()
 
     shmdt(shm_processos);
     close(fifo_irq);
+    encerraUdpClient();
     
     // Cleanup semaphore
     cleanup_sem();

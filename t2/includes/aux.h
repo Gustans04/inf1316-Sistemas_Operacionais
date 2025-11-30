@@ -121,6 +121,13 @@ typedef struct {
     } call;
 } CallRequest;
 
+typedef struct {
+    CallRequest lista[NUM_APP];
+    int inicio;
+    int fim;
+    int qtd;
+} FilaRequests;
+
 int criaFIFO(const char* nomeFIFO);
 int abreFIFO(int* fifo, const char* nomeFIFO, int modo);
 
@@ -135,6 +142,16 @@ void removerTodasOcorrencias(FilaApps *f, pid_t pid);
 int estaVazia(FilaApps *fila);
 pid_t procuraNaFila(FilaApps *fila, pid_t pid_desejado);
 int numeroDoProcesso(InfoProcesso* processos, pid_t pid); // retorna o número do processo (1 a NUM_APP) dado o PID
+
+void inicializarFilaRequests(FilaRequests *fila);
+void inserirNaFilaRequests(FilaRequests *fila, CallRequest request);
+
+// Udp Client function
+void iniciaUdpClient(void);
+void enviaUdpRequest(CallRequest request); 
+CallRequest recebeUdpResponse(void);
+void encerraUdpClient(void);
+int owner_na_fila(FilaRequests *f, int owner);
 
 void print_status(InfoProcesso* processos);
 
