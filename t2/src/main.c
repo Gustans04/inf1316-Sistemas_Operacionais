@@ -201,27 +201,35 @@ int main()
                 
                 if (strncmp(ponteiro_msg, "IRQ1", 5) == 0)
                 {
-                    if (!estaVazia(esperandoD1))
-                    {
-                        pid_t pidTemp = removerDaFila(esperandoD1);
-                        InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                        sem_lock();
-                        appPronto->estado = PRONTO;
-                        inserirNaFila(prontos, appPronto->pid);
-                        sem_unlock();
+                    if (!estaVaziaRequests(filaFiles)){
+                        int owner = removerDaFilaRequests(filaFiles);
+                        if (!estaVazia(esperandoD1))
+                        {
+                            pid_t pidTemp = shm_processos[owner - 1].pid;
+                            removerPidDaFila(esperandoD1, pidTemp);
+                            InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                            sem_lock();
+                            appPronto->estado = PRONTO;
+                            inserirNaFila(prontos, appPronto->pid);
+                            sem_unlock();
+                        }
                     }
                 }
                 
                 if (strncmp(ponteiro_msg, "IRQ2", 5) == 0)
                 {
-                    if (!estaVazia(esperandoD2))
-                    {
-                        pid_t pidTemp = removerDaFila(esperandoD2);
-                        InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                        sem_lock();
-                        appPronto->estado = PRONTO;
-                        inserirNaFila(prontos, appPronto->pid);
-                        sem_unlock();
+                    if (!estaVaziaRequests(filaDirs)){
+                        int owner = removerDaFilaRequests(filaDirs);
+                        if (!estaVazia(esperandoD2))
+                        {
+                            pid_t pidTemp = shm_processos[owner - 1].pid;
+                            removerPidDaFila(esperandoD2, pidTemp);
+                            InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                            sem_lock();
+                            appPronto->estado = PRONTO;
+                            inserirNaFila(prontos, appPronto->pid);
+                            sem_unlock();
+                        }
                     }
                 }
 

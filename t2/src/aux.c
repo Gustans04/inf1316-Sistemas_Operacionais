@@ -177,6 +177,23 @@ int numeroDoProcesso(InfoProcesso* processos, pid_t pid)
     return -1; // PID não encontrado
 }
 
+void removerPidDaFila(FilaApps *fila, pid_t pid) 
+{
+    int idx = fila->inicio;
+    for (int i = 0; i < fila->qtd; i++) {
+        pid_t cur = fila->lista[idx];
+        idx = (idx + 1) % NUM_APP;
+        if (cur == pid) {
+            // Shift elements to the left
+            for (int j = i; j < fila->qtd - 1; j++) {
+                fila->lista[(fila->inicio + j) % NUM_APP] = fila->lista[(fila->inicio + j + 1) % NUM_APP];
+            }
+            break;
+        }
+    }
+    fila->qtd--;
+    fila->fim = (fila->fim - 1 + NUM_APP) % NUM_APP; // Garante que o fim seja positivo
+}
 
 void print_status(InfoProcesso* processos) 
 {
@@ -320,4 +337,18 @@ int owner_na_fila(FilaRequests *f, int owner)
         if (f->lista[idx].owner == owner) return 1;
     }
     return 0;
+}
+
+int estaVaziaRequests(FilaRequests *fila) 
+{
+    return fila->qtd == 0;
+}
+
+int removerDaFilaRequests(FilaRequests *fila) 
+{
+    CallRequest valor_removido = fila->lista[fila->inicio];
+    if (fila->qtd > 0)
+        fila->qtd--;
+    fila->inicio = (fila->inicio + 1) % NUM_APP;
+    return valor_removido.owner;
 }
