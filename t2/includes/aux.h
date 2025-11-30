@@ -90,6 +90,7 @@ typedef struct {
 } ListDirCall; // lista o conteúdo do diretório em path em uma única string alldirinfo, e com os nomes indexados por fstlstpositions
 
 typedef struct {
+    int novo; // Indica se há uma nova syscall a ser processada: 0 - não, 1 - sim
     int tipo_syscall; // Tipo da syscall: 0 - WriteCall, 1 - ReadCall, 2 - AddCall, 3 - RemCall, 4 - ListDirCall, -1 - Nenhuma syscall
     union {
         WriteCall writecall;

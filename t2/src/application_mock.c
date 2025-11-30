@@ -71,6 +71,7 @@ int main()
             printf("Application com PID %d escolheu a SysCall do tipo %d\n", getpid(), tipo_syscall);
             sem_lock();
             appAtual->syscall.tipo_syscall = tipo_syscall;
+            appAtual->syscall.novo = 1; // Indica que há uma nova syscall a ser processada
             switch (tipo_syscall)
             {
             case 0: // WriteCall

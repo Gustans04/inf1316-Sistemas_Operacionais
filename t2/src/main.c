@@ -94,6 +94,7 @@ int main()
             shm_processos[i].pid = pid_list[i];
             shm_processos[i].pc = 0;
             shm_processos[i].estado = PRONTO;
+            shm_processos[i].syscall.novo = 0;
             shm_processos[i].syscall.tipo_syscall = -1;
             shm_processos[i].executando = 1;
             sem_unlock();
@@ -225,15 +226,16 @@ int main()
 
         // Lê SYSCALLs
         sem_lock();
-        int syscall = appAtual->syscall.tipo_syscall;
+        int syscall = appAtual->syscall.novo;
         sem_unlock();
-        if (syscall >= 0) {            
+        if (syscall > 0) {            
             pid_t pidTemp = appAtual->pid;
             int era_atual;
             int owner = numeroDoProcesso(shm_processos, pidTemp);
 
             InfoProcesso* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
             sem_lock();
+            appBloqueado->syscall.novo = 0;
             appBloqueado->estado = BLOQUEADO;
             removerTodasOcorrencias(prontos, pidTemp);
 
@@ -242,10 +244,9 @@ int main()
 
             appBloqueado->executando = 0;
 
-            switch (syscall)
+            switch (appBloqueado->syscall.tipo_syscall)
             {
             case 0: // WriteCall
-                appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
                 // Processa a WriteCall aqui
                 CallRequest wr;
                 wr.tipo_syscall = 0;
@@ -264,7 +265,6 @@ int main()
                 inserirNaFila(esperandoD1, pidTemp); // Simula espera pelo dispositivo D1
                 break;
             case 1: // ReadCall
-                appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
                 // Processa a ReadCall aqui
                 CallRequest rd;
                 rd.tipo_syscall = 1;
@@ -282,7 +282,6 @@ int main()
                 inserirNaFila(esperandoD1, pidTemp); // Simula espera pelo dispositivo D1
                 break;
             case 2: // AddCall
-                appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
                 // Processa a AddCall aqui
                 CallRequest dc;
                 dc.tipo_syscall = 2;
@@ -301,7 +300,6 @@ int main()
                 inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
                 break;
             case 3: // RemCall
-                appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
                 // Processa a RemCall aqui
                 CallRequest dr;
                 dr.tipo_syscall = 3;
@@ -320,7 +318,6 @@ int main()
                 inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
                 break;
             case 4: // ListDirCall
-                appAtual->syscall.tipo_syscall = -1; // Reseta a syscall após processar
                 // Processa a ListDirCall aqui
                 CallRequest dl;
                 dl.tipo_syscall = 4;
