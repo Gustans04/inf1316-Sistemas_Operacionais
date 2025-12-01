@@ -197,15 +197,21 @@ void removerPidDaFila(FilaApps *fila, pid_t pid)
 
 void print_status(InfoProcesso* processos) 
 {
-    printf("%-7s %-4s %-12s %-10s %-12s\n", 
-           "PID", "PC", "ESTADO", "OPERAÇÃO", "EXECUTANDO");
-    printf("---------------------------------------------\n"); // Linha divisória
+    printf("=== Tabela de Status dos Processos ===\n");
+    printf("%-7s %-4s %-12s %-14s %-80s %-12s\n", 
+           "PID", "PC", "ESTADO", "OPERAÇÃO", "PARAMETROS", "RESPONDIDO");
+    printf("------------------------------------------------------------------------------------------------------------------------------\n"); // Linha divisória
 
     sem_lock();
     for (int i = 0; i < 5; i++) {
         char *estado_str = "-";
         char *operacao_str = "-";
-        char *executando_str = processos[i].executando ? "SIM" : "NAO"; // Não sem acento para evitar problemas de padding
+        char param_str[1024] = "-";
+        char *executando_str;
+        if (processos[i].estado == 0 || processos[i].estado == 1)
+            executando_str = "SIM";
+        else
+            executando_str = "NAO";
 
         switch (processos[i].estado) {
             case PRONTO:     estado_str = "PRONTO";     break;
@@ -216,20 +222,116 @@ void print_status(InfoProcesso* processos)
         }
 
         switch (processos[i].syscall.tipo_syscall) {
-            case 0: operacao_str = "WriteCall"; break;
-            case 1: operacao_str = "ReadCall";  break;
-            case 2: operacao_str = "AddCall";   break;
-            case 3: operacao_str = "RemCall";   break;
-            case 4: operacao_str = "ListDirCall"; break;
-            default: operacao_str = "-"; break;
+            case 0: 
+                operacao_str = "WriteCall"; 
+                snprintf(param_str, sizeof(param_str), "(%s, %d, %s, %d)", 
+                processos[i].syscall.call.writecall.path, 
+                processos[i].syscall.call.writecall.len,  
+                processos[i].syscall.call.writecall.payload,
+                processos[i].syscall.call.writecall.offset);
+                break;
+            case 1: 
+                operacao_str = "ReadCall";  
+                snprintf(param_str, sizeof(param_str), "(%s, %d, &buffer, %d)",
+                    processos[i].syscall.call.readcall.path,
+                    processos[i].syscall.call.readcall.len,
+                    processos[i].syscall.call.readcall.offset);
+                break;
+            case 2: 
+                operacao_str = "AddCall";   
+                snprintf(param_str, sizeof(param_str), "(%s, %d, %s, %d)", 
+                    processos[i].syscall.call.addcall.path,
+                    processos[i].syscall.call.addcall.len1,
+                    processos[i].syscall.call.addcall.dirname,
+                    processos[i].syscall.call.addcall.len2);
+                break;
+            case 3: 
+                operacao_str = "RemCall";   
+                snprintf(param_str, sizeof(param_str), "(%s, %d, %s, %d)", 
+                    processos[i].syscall.call.remcall.path,
+                    processos[i].syscall.call.remcall.len1,
+                    processos[i].syscall.call.remcall.name,
+                    processos[i].syscall.call.remcall.len2);
+                break;
+            case 4: 
+                operacao_str = "ListDirCall"; 
+                snprintf(param_str, sizeof(param_str), "(%s, %d, alldirinfo, fstlstpositions, &nrnames)", 
+                    processos[i].syscall.call.listdircall.path,
+                    processos[i].syscall.call.listdircall.len1);
+                break;
         }
 
         printf("%-7d ",   processos[i].pid);
         printf("%-4d ",   processos[i].pc);
         printf("%-12s ",  estado_str);
-        printf("%-10s ",  operacao_str);
-        printf("%-10s\n",  executando_str);
+        printf("%-12s ",  operacao_str);
+        printf("%-80s ",  param_str);
+        printf("%-12s\n",  executando_str);
     }
+    sem_unlock();
+
+    printf("------------------------------------------------------------------------------------------------------------------------------\n\n"); // Linha divisória
+    printf("=== Posições em Arquivos ===\n");
+    printf("%-7s %-50s %-35s %-15s\n",
+        "PID",  "Diretório Atual",  "Arquivo Atual",   "Posição Atual");
+    printf("------------------------------------------------------------------------------------------------------------------------------\n"); // Linha divisória
+
+    sem_lock();
+    for (int i = 0; i < 5; i++) {
+        char dir[256] = "-";
+        char file[256] = "-";
+        char pos[256] = "-";
+        char** parts = NULL;
+        int aux = 0; // variável auxiliar para cálculos de posição
+
+        printf("%-7d ",   processos[i].pid);
+        
+        switch (processos[i].syscall.tipo_syscall) {
+            case 0: // WriteCall
+                parts = split_string(processos[i].syscall.call.writecall.path, "/");
+
+                snprintf(dir, sizeof(dir), "A%d/%s", i+1, parts[0]);
+                strcpy(file, parts[1]);
+                if (processos[i].estado == 0 || processos[i].estado == 1)
+                    aux = processos[i].syscall.call.writecall.offset + 16;
+                sprintf(pos, "%d", aux);
+                break;
+            case 1: // ReadCall
+                parts = split_string(processos[i].syscall.call.readcall.path, "/");
+
+                snprintf(dir, sizeof(dir), "A%d/%s", i+1, parts[0]);
+                strcpy(file, parts[1]);
+                if (processos[i].estado == 0 || processos[i].estado == 1)
+                    aux = processos[i].syscall.call.writecall.offset + 16;
+                sprintf(pos, "%d", aux);
+                break;
+            case 2: // AddCall
+                snprintf(dir, sizeof(dir), "A%d/%s/%s", 
+                    i+1,
+                    processos[i].syscall.call.addcall.path,
+                    processos[i].syscall.call.addcall.dirname);
+                break;
+            case 3: // RemCall
+                parts = split_string(processos[i].syscall.call.remcall.path, "/");
+
+                snprintf(dir, sizeof(dir), "A%d/%s", i+1, parts[0]);
+                break;
+            case 4: // ListDirCall
+                snprintf(dir, sizeof(dir), "A%d/%s", i+1, processos[i].syscall.call.listdircall.path);
+                break;
+        }
+
+        if (parts) {
+            free(parts[0]);
+            free(parts[1]);
+            free(parts);
+        }
+
+        printf("%-50s ",  dir);
+        printf("%-35s ",  file);
+        printf("%-15s\n", pos);
+    }
+    printf("------------------------------------------------------------------------------------------------------------------------------\n\n"); // Linha divisória
     sem_unlock();
 }
 
@@ -351,4 +453,39 @@ int removerDaFilaRequests(FilaRequests *fila)
         fila->qtd--;
     fila->inicio = (fila->inicio + 1) % NUM_APP;
     return valor_removido.owner;
+}
+
+char** split_string(const char* str, const char* delim){
+    // Allocate memory for the result array (2 strings)
+    char** result = malloc(2 * sizeof(char*));
+    if (!result) return NULL;
+    
+    // Find the last occurrence of the delimiter
+    char* last_delim = strrchr(str, delim[0]); // Assumes single character delimiter
+    
+    if (last_delim == NULL) {
+        // No delimiter found, return the whole string as first part, empty as second
+        result[0] = strdup(str);
+        result[1] = strdup("");
+    } else {
+        // Calculate lengths for before and after the delimiter
+        int first_len = last_delim - str;
+        
+        // Allocate and copy the first part (before delimiter)
+        result[0] = malloc(first_len + 1);
+        if (result[0]) {
+            strncpy(result[0], str, first_len);
+            result[0][first_len] = '\0';
+        } else {
+            result[0] = strdup("");
+        }
+        
+        // Copy the second part (after delimiter)
+        result[1] = strdup(last_delim + 1);
+        if (!result[1]) {
+            result[1] = strdup("");
+        }
+    }
+
+    return result;
 }

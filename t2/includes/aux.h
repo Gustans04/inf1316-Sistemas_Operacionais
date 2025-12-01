@@ -156,6 +156,7 @@ void enviaUdpRequest(CallRequest request);
 CallRequest recebeUdpResponse(void);
 void encerraUdpClient(void);
 
+char** split_string(const char* str, const char* delim);
 void print_status(InfoProcesso* processos);
 
 // Named semaphore functions for inter-process synchronization
