@@ -208,7 +208,7 @@ void print_status(InfoProcesso* processos)
         char *operacao_str = "-";
         char param_str[1024] = "-";
         char *executando_str;
-        if (processos[i].estado == 0 || processos[i].estado == 1)
+        if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
             executando_str = "SIM";
         else
             executando_str = "NAO";
@@ -292,8 +292,10 @@ void print_status(InfoProcesso* processos)
 
                 snprintf(dir, sizeof(dir), "A%d/%s", i+1, parts[0]);
                 strcpy(file, parts[1]);
-                if (processos[i].estado == 0 || processos[i].estado == 1)
+                if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
                     aux = processos[i].syscall.call.writecall.offset + 16;
+                else
+                    aux = processos[i].syscall.call.writecall.offset;
                 sprintf(pos, "%d", aux);
                 break;
             case 1: // ReadCall
@@ -301,8 +303,10 @@ void print_status(InfoProcesso* processos)
 
                 snprintf(dir, sizeof(dir), "A%d/%s", i+1, parts[0]);
                 strcpy(file, parts[1]);
-                if (processos[i].estado == 0 || processos[i].estado == 1)
-                    aux = processos[i].syscall.call.writecall.offset + 16;
+                if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
+                    aux = processos[i].syscall.call.readcall.offset + 16;
+                else
+                    aux = processos[i].syscall.call.readcall.offset;
                 sprintf(pos, "%d", aux);
                 break;
             case 2: // AddCall
