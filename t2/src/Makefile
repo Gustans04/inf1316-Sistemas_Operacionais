@@ -94,8 +94,12 @@ run-all: all
 # Compila e roda os testes
 test: directories
 	@echo "Compilando testes..."
-	# Compila o teste (igual ao que já estava)
+	# Compila o teste SFSS
 	$(CC) $(CFLAGS) $(TESTDIR)/test_sfss_ops.c sfss_ops.c -o $(BINDIR)/test_sfss
+	# Compila o teste InterController
+	$(CC) $(CFLAGS) $(TESTDIR)/test_intercontroller.c aux.c -o $(BINDIR)/test_intercontroller
+	# Compila o teste Main
+	$(CC) $(CFLAGS) $(TESTDIR)/test_main.c aux.c -o $(BINDIR)/test_main
 	
 	@echo "Rodando testes dentro da pasta 'tests'..."
 	# AQUI ESTÁ O TRUQUE:
@@ -103,18 +107,50 @@ test: directories
 	# 2. &&: Se entrou com sucesso, executa o comando seguinte
 	# 3. ../bin/test_sfss: Chama o executável (caminho relativo à pasta tests)
 	cd $(TESTDIR) && ../bin/test_sfss
+	@echo ""
+	@echo "Rodando teste do InterController..."
+	# Roda o teste InterController
+	cd $(TESTDIR) && ../bin/test_intercontroller
+	@echo ""
+	@echo "Rodando teste do Main..."
+	# Roda o teste Main
+	cd $(TESTDIR) && ../bin/test_main
+
+# Roda apenas o teste do SFSS
+test-sfss: directories
+	@echo "Compilando teste SFSS..."
+	$(CC) $(CFLAGS) $(TESTDIR)/test_sfss_ops.c sfss_ops.c -o $(BINDIR)/test_sfss
+	@echo "Rodando teste SFSS..."
+	cd $(TESTDIR) && ../bin/test_sfss
+
+# Roda apenas o teste do InterController
+test-intercontroller: directories
+	@echo "Compilando teste InterController..."
+	$(CC) $(CFLAGS) $(TESTDIR)/test_intercontroller.c aux.c -o $(BINDIR)/test_intercontroller
+	@echo "Rodando teste InterController..."
+	cd $(TESTDIR) && ../bin/test_intercontroller
+
+# Roda apenas o teste do Main
+test-main: directories
+	@echo "Compilando teste Main..."
+	$(CC) $(CFLAGS) $(TESTDIR)/test_main.c aux.c -o $(BINDIR)/test_main
+	@echo "Rodando teste Main..."
+	cd $(TESTDIR) && ../bin/test_main
 
 # Help
 help:
 	@echo "Available targets:"
-	@echo "  all          - Build all executables (main, inter, app, sfss)"
-	@echo "  test         - Build and run SFSS unit tests"
-	@echo "  clean        - Remove build files and directories"
-	@echo "  rebuild      - Clean and rebuild everything"
-	@echo "  run-main     - Run the Kernel Simulator"
-	@echo "  run-inter    - Run the Intercontroller"
-	@echo "  run-sfss     - Run the File System Server"
-	@echo "  run-all      - Build and run Main (Kernel)"
-	@echo "  help         - Show this help message"
+	@echo "  all                  - Build all executables (main, inter, app, sfss)"
+	@echo "  test                 - Build and run all unit tests"
+	@echo "  test-sfss            - Build and run SFSS unit tests only"
+	@echo "  test-intercontroller - Build and run InterController unit tests only"
+	@echo "  test-main            - Build and run Main unit tests only"
+	@echo "  clean                - Remove build files and directories"
+	@echo "  rebuild              - Clean and rebuild everything"
+	@echo "  run-main             - Run the Kernel Simulator"
+	@echo "  run-inter            - Run the Intercontroller"
+	@echo "  run-sfss             - Run the File System Server"
+	@echo "  run-all              - Build and run Main (Kernel)"
+	@echo "  help                 - Show this help message"
 
-.PHONY: all clean rebuild directories install run-main run-inter run-app run-sfss run-all test help
+.PHONY: all clean rebuild directories install run-main run-inter run-app run-sfss run-all test test-sfss test-intercontroller test-main help
