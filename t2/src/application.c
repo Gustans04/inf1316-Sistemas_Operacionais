@@ -22,7 +22,7 @@ int main()
     srand(getpid() * time(NULL)); // Para os números ficarem randômicos
     
     // Abrir o semáforo existente para uso neste processo
-    process_sem = sem_open("/t1_process_sem", 0);
+    process_sem = sem_open("/t2_process_sem", 0);
 
     int PC = 0; // Contador de iterações (Program Counter)
 

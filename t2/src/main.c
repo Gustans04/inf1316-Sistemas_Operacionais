@@ -26,9 +26,14 @@ int main()
     FilaApps* esperandoD1 = (FilaApps* )malloc(sizeof(FilaApps));
     FilaApps* esperandoD2 = (FilaApps* )malloc(sizeof(FilaApps));
     FilaApps* prontos = (FilaApps* )malloc(sizeof(FilaApps));
+    FilaRequests* filaFiles = (FilaRequests* )malloc(sizeof(FilaRequests));
+    FilaRequests* filaDirs = (FilaRequests* )malloc(sizeof(FilaRequests));
     inicializarFila(esperandoD1);
     inicializarFila(esperandoD2);
     inicializarFila(prontos);
+    inicializarFilaRequests(filaFiles);
+    inicializarFilaRequests(filaDirs);
+    iniciaUdpClient();
 
     // aloca a memória compartilhada
     int segmento = shmget (IPC_CODE, sizeof (InfoProcesso) * NUM_APP, IPC_CREAT | S_IRUSR | S_IWUSR);
@@ -44,22 +49,16 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    if (criaFIFO("FIFO_IRQ") < 0 || criaFIFO("FIFO_SYSCALL") < 0) {
+    if (criaFIFO("FIFO_IRQ") < 0) {
         perror("Falha ao criar FIFOs");
         exit(EXIT_FAILURE);
     }
 
-    int fifo_irq, fifo_syscall;
+    int fifo_irq;
 
     // O Kernel simplesmente lê o que for escrito na FIFO pelo InterController
     if (abreFIFO(&fifo_irq, "FIFO_IRQ", O_RDONLY | O_NONBLOCK) < 0) {
         perror("Falha ao abrir FIFO de IRQs");
-        exit(EXIT_FAILURE);
-    }
-
-    // O Kernel simplesmente lê o que for escrito na FIFO pelas Applications
-    if (abreFIFO(&fifo_syscall, "FIFO_SYSCALL", O_RDONLY | O_NONBLOCK) < 0) {
-        perror("Falha ao abrir FIFO de SYSCALLs");
         exit(EXIT_FAILURE);
     }
 
@@ -69,7 +68,7 @@ int main()
     } else if (inter_pid == 0) {
         // InterController 
         printf("InterController com PID %d\n", getpid());
-        execl("./intercontroller", "inter", NULL);
+        execl("../bin/intercontroller", "inter", NULL);
         fprintf(stderr, "Erro ao rodar o InterController\n");
         exit(EXIT_FAILURE);
     }
@@ -86,7 +85,7 @@ int main()
             snprintf(app_name, sizeof(app_name), "application%d", i);
             app_name[12] = '\0';
 
-            execl("./application", app_name, NULL);
+            execl("../bin/application", app_name, NULL);
             fprintf(stderr, "Erro ao rodar a Application\n");
             exit(EXIT_FAILURE);
         }
@@ -100,10 +99,9 @@ int main()
             shm_processos[i].pid = pid_list[i];
             shm_processos[i].pc = 0;
             shm_processos[i].estado = PRONTO;
-            shm_processos[i].dispositivo = -1;
-            shm_processos[i].operacao = -1;
+            shm_processos[i].syscall.novo = 0;
+            shm_processos[i].syscall.tipo_syscall = -1;
             shm_processos[i].executando = 1;
-            memset(shm_processos[i].qtd_acessos, 0, sizeof(shm_processos[i].qtd_acessos));
             sem_unlock();
         }
     }
@@ -203,27 +201,35 @@ int main()
                 
                 if (strncmp(ponteiro_msg, "IRQ1", 5) == 0)
                 {
-                    if (!estaVazia(esperandoD1))
-                    {
-                        pid_t pidTemp = removerDaFila(esperandoD1);
-                        InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                        sem_lock();
-                        appPronto->estado = PRONTO;
-                        inserirNaFila(prontos, appPronto->pid);
-                        sem_unlock();
+                    if (!estaVaziaRequests(filaFiles)){
+                        int owner = removerDaFilaRequests(filaFiles);
+                        if (!estaVazia(esperandoD1))
+                        {
+                            pid_t pidTemp = shm_processos[owner - 1].pid;
+                            removerPidDaFila(esperandoD1, pidTemp);
+                            InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                            sem_lock();
+                            appPronto->estado = PRONTO;
+                            inserirNaFila(prontos, appPronto->pid);
+                            sem_unlock();
+                        }
                     }
                 }
                 
                 if (strncmp(ponteiro_msg, "IRQ2", 5) == 0)
                 {
-                    if (!estaVazia(esperandoD2))
-                    {
-                        pid_t pidTemp = removerDaFila(esperandoD2);
-                        InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                        sem_lock();
-                        appPronto->estado = PRONTO;
-                        inserirNaFila(prontos, appPronto->pid);
-                        sem_unlock();
+                    if (!estaVaziaRequests(filaDirs)){
+                        int owner = removerDaFilaRequests(filaDirs);
+                        if (!estaVazia(esperandoD2))
+                        {
+                            pid_t pidTemp = shm_processos[owner - 1].pid;
+                            removerPidDaFila(esperandoD2, pidTemp);
+                            InfoProcesso* appPronto = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+                            sem_lock();
+                            appPronto->estado = PRONTO;
+                            inserirNaFila(prontos, appPronto->pid);
+                            sem_unlock();
+                        }
                     }
                 }
 
@@ -232,101 +238,163 @@ int main()
         }
 
         // Lê SYSCALLs
-        bytes_read = read(fifo_syscall, buffer, sizeof(buffer));
-        if (bytes_read > 0) {
-            buffer[bytes_read] = '\0';
-            printf("Kernel recebeu: %s\n", buffer);
-            
-            pid_t pidTemp;
-            int dxTemp;
-            int opTemp;
+        sem_lock();
+        int syscall = appAtual->syscall.novo;
+        sem_unlock();
+        if (syscall > 0) {            
+            pid_t pidTemp = appAtual->pid;
             int era_atual;
+            int owner = numeroDoProcesso(shm_processos, pidTemp);
 
-            int itensEncontrados = sscanf(buffer, "%d;%d;%d", &pidTemp, &dxTemp, &opTemp);
+            InfoProcesso* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
+            sem_lock();
+            appBloqueado->syscall.novo = 0;
+            appBloqueado->estado = BLOQUEADO;
+            removerTodasOcorrencias(prontos, pidTemp);
 
-            if (itensEncontrados == 3)
+            if (appBloqueado->executando) era_atual = 1;
+            else era_atual = 0;
+
+            appBloqueado->executando = 0;
+
+            switch (appBloqueado->syscall.tipo_syscall)
             {
-                InfoProcesso* appBloqueado = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-                sem_lock();
-                appBloqueado->estado = BLOQUEADO;
-                removerTodasOcorrencias(prontos, pidTemp);
+            case 0: // WriteCall
+                // Processa a WriteCall aqui
+                CallRequest wr;
+                wr.tipo_syscall = 0;
+                wr.owner = owner;
+                snprintf(wr.call.writecall.path, sizeof(wr.call.writecall.path), "/A%d/%s", owner, appAtual->syscall.call.writecall.path);
+                wr.call.writecall.len = appAtual->syscall.call.writecall.len;
+                snprintf(wr.call.writecall.payload, sizeof(wr.call.writecall.payload), "%s", appAtual->syscall.call.writecall.payload);
+                wr.call.writecall.offset = appAtual->syscall.call.writecall.offset;
+                // Simula a escrita no arquivo
+                printf("Kernel: WR-REQ, %d, %s, %d, %s, %d\n", 
+                    wr.owner, 
+                    wr.call.writecall.path, 
+                    wr.call.writecall.len,
+                    wr.call.writecall.payload, 
+                    wr.call.writecall.offset);
+                inserirNaFila(esperandoD1, pidTemp); // Simula espera pelo dispositivo D1
+                enviaUdpRequest(wr);
+                break;
+            case 1: // ReadCall
+                // Processa a ReadCall aqui
+                CallRequest rd;
+                rd.tipo_syscall = 1;
+                rd.owner = owner;
+                snprintf(rd.call.readcall.path, sizeof(rd.call.readcall.path), "/A%d/%s", owner, appAtual->syscall.call.readcall.path);
+                rd.call.readcall.len = appAtual->syscall.call.readcall.len;
+                memset(rd.call.readcall.buffer, 0, sizeof(rd.call.readcall.buffer));
+                rd.call.readcall.offset = appAtual->syscall.call.readcall.offset;
+                // Simula a leitura no arquivo
+                printf("Kernel: RD-REQ, %d, %s, %d, buffer[], %d\n", 
+                    rd.owner, 
+                    rd.call.readcall.path, 
+                    rd.call.readcall.len,
+                    rd.call.readcall.offset);
+                inserirNaFila(esperandoD1, pidTemp); // Simula espera pelo dispositivo D1
+                enviaUdpRequest(rd);
+                break;
+            case 2: // AddCall
+                // Processa a AddCall aqui
+                CallRequest dc;
+                dc.tipo_syscall = 2;
+                dc.owner = owner;
+                snprintf(dc.call.addcall.path, sizeof(dc.call.addcall.path), "/A%d/%s", owner, appAtual->syscall.call.addcall.path);
+                dc.call.addcall.len1 = appAtual->syscall.call.addcall.len1;
+                snprintf(dc.call.addcall.dirname, sizeof(dc.call.addcall.dirname), "%s", appAtual->syscall.call.addcall.dirname);
+                dc.call.addcall.len2 = appAtual->syscall.call.addcall.len2;
+                // Simula a criação do diretório
+                printf("Kernel: DC-REQ, %d, %s, %d, %s, %d\n", 
+                    dc.owner, 
+                    dc.call.addcall.path, 
+                    dc.call.addcall.len1,
+                    dc.call.addcall.dirname, 
+                    dc.call.addcall.len2);
+                inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
+                enviaUdpRequest(dc);
+                break;
+            case 3: // RemCall
+                // Processa a RemCall aqui
+                CallRequest dr;
+                dr.tipo_syscall = 3;
+                dr.owner = owner;
+                snprintf(dr.call.remcall.path, sizeof(dr.call.remcall.path), "/A%d/%s", owner, appAtual->syscall.call.remcall.path);
+                dr.call.remcall.len1 = appAtual->syscall.call.remcall.len1;
+                snprintf(dr.call.remcall.name, sizeof(dr.call.remcall.name), "%s", appAtual->syscall.call.remcall.name);
+                dr.call.remcall.len2 = appAtual->syscall.call.remcall.len2;
+                // Simula a remoção do arquivo ou diretório
+                printf("Kernel: DR-REQ, %d, %s, %d, %s, %d\n", 
+                    dr.owner, 
+                    dr.call.remcall.path, 
+                    dr.call.remcall.len1,
+                    dr.call.remcall.name, 
+                    dr.call.remcall.len2);
+                inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
+                enviaUdpRequest(dr);
+                break;
+            case 4: // ListDirCall
+                // Processa a ListDirCall aqui
+                CallRequest dl;
+                dl.tipo_syscall = 4;
+                dl.owner = owner;
+                snprintf(dl.call.listdircall.path, sizeof(dl.call.listdircall.path), "/A%d/%s", owner, appAtual->syscall.call.listdircall.path);
+                dl.call.listdircall.len1 = appAtual->syscall.call.listdircall.len1;
+                // Simula a listagem do diretório
+                printf("Kernel: DL-REQ, %d, %s, %d\n", 
+                    dl.owner, 
+                    dl.call.listdircall.path, 
+                    dl.call.listdircall.len1);
+                inserirNaFila(esperandoD2, pidTemp); // Simula espera pelo dispositivo D2
+                enviaUdpRequest(dl);
+                break;
+            }
+            
+            sem_unlock();
 
-                if (appBloqueado->executando) era_atual = 1;
-                else era_atual = 0;
+            if (kill(pidTemp, SIGSTOP) == -1)
+            {
+                perror("Falha ao enviar sinal SIGSTOP");
+                exit(EXIT_FAILURE);
+            }
 
-                appBloqueado->executando = 0;
-
-                switch (dxTemp)
+            if (era_atual)
+            {
+                int proximo_encontrado = 0;
+                while (!estaVazia(prontos))
                 {
-                    case D1: 
-                        appBloqueado->dispositivo = D1;
-                        inserirNaFila(esperandoD1, pidTemp);
-                        appBloqueado->qtd_acessos[0]++; 
-                        break;
-                    case D2: 
-                        appBloqueado->dispositivo = D2;
-                        inserirNaFila(esperandoD2, pidTemp);
-                        appBloqueado->qtd_acessos[1]++;
-                        break;
-                }
+                    pidTemp = removerDaFila(prontos);
+                    appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
 
-                switch (opTemp)
-                {
-                    case R:
-                        appBloqueado->operacao = R;
-                        break;
-                    case W:
-                        appBloqueado->operacao = W;
-                        break;
-                    case X:
-                        appBloqueado->operacao = X;
-                        break;
-                }
-                sem_unlock();
+                    // pula qualquer PID que não exista mais ou já tenha TERMINADO
+                    if (!appAtual || appAtual->estado == TERMINADO || kill(pidTemp, 0) == -1) {
+                        removerTodasOcorrencias(prontos, pidTemp); 
+                        continue; 
+                    }
 
-                if (kill(pidTemp, SIGSTOP) == -1)
-                {
-                    perror("Falha ao enviar sinal SIGSTOP");
-                    exit(EXIT_FAILURE);
-                }
+                    printf("Kernel: Verificando PID %d da fila [Estado: %d]\n", pidTemp, appAtual->estado);
 
-                if (era_atual)
-                {
-                    int proximo_encontrado = 0;
-                    while (!estaVazia(prontos))
+                    if (appAtual->estado == PRONTO)
                     {
-                        pidTemp = removerDaFila(prontos);
-                        appAtual = encontrarAplicacaoPorPID(shm_processos, pidTemp);
-
-                        // pula qualquer PID que não exista mais ou já tenha TERMINADO
-                        if (!appAtual || appAtual->estado == TERMINADO || kill(pidTemp, 0) == -1) {
-                            removerTodasOcorrencias(prontos, pidTemp); 
-                            continue; 
-                        }
-
-                        printf("Kernel: Verificando PID %d da fila [Estado: %d]\n", pidTemp, appAtual->estado);
-
-                        if (appAtual->estado == PRONTO)
+                        printf("Kernel: Escalonando PID %d\n", appAtual->pid);
+                        sem_lock();
+                        if (kill(appAtual->pid, SIGCONT) == -1)
                         {
-                            printf("Kernel: Escalonando PID %d\n", appAtual->pid);
-                            sem_lock();
-                            if (kill(appAtual->pid, SIGCONT) == -1)
-                            {
-                                perror("Falha ao enviar sinal SIGCONT (SYSCALL)");
-                                exit(EXIT_FAILURE);
-                            }
-                            appAtual->estado = EXECUTANDO;
-                            appAtual->executando = 1;
-                            proximo_encontrado = 1;
-                            sem_unlock();
-                            break; 
+                            perror("Falha ao enviar sinal SIGCONT (SYSCALL)");
+                            exit(EXIT_FAILURE);
                         }
-                        printf("Kernel: Ignorando PID %d (estado nao eh PRONTO)\n", pidTemp);
+                        appAtual->estado = EXECUTANDO;
+                        appAtual->executando = 1;
+                        proximo_encontrado = 1;
+                        sem_unlock();
+                        break; 
                     }
+                    printf("Kernel: Ignorando PID %d (estado nao eh PRONTO)\n", pidTemp);
+                }
 
-                    if (!proximo_encontrado) {
-                        printf("Kernel: Fila de prontos ficou vazia\n");
-                    }
+                if (!proximo_encontrado) {
+                    printf("Kernel: Fila de prontos ficou vazia\n");
                 }
             }
         }
@@ -342,7 +410,7 @@ int main()
         pid_t app;
         while ((app = waitpid(-1, &status, WNOHANG)) > 0) 
         {
-            InfoProcesso *processo = encontrarAplicacaoPorPID(shm_processos, app);
+            InfoProcesso* processo = encontrarAplicacaoPorPID(shm_processos, app);
             sem_lock();
             if (processo) {
                 processo->estado = TERMINADO;
@@ -352,6 +420,20 @@ int main()
             removerTodasOcorrencias(prontos, app);
             removerTodasOcorrencias(esperandoD1, app);
             removerTodasOcorrencias(esperandoD2, app);
+        }
+
+        // Lê resposta do UDP (se houver)
+        CallRequest response;
+        while((response = recebeUdpResponse()).tipo_syscall != -1) 
+        {
+            printf("Kernel: recebeu resposta UDP para o processo %d\n", response.owner);
+            sem_lock();
+            if (response.tipo_syscall == 0 || response.tipo_syscall == 1) 
+                inserirNaFilaRequests(filaFiles, response);
+            else if (response.tipo_syscall == 2 || response.tipo_syscall == 3 || response.tipo_syscall == 4)
+                inserirNaFilaRequests(filaDirs, response);
+            sem_unlock();
+            printf("Kernel: resposta UDP enfileirada para o processo %d\n", response.owner);
         }
 
     }
@@ -371,7 +453,7 @@ int main()
 
     shmdt(shm_processos);
     close(fifo_irq);
-    close(fifo_syscall);
+    encerraUdpClient();
     
     // Cleanup semaphore
     cleanup_sem();

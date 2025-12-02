@@ -26,7 +26,7 @@ int main(void) {
     srand(time(NULL));
     
     // Abrir o semáforo existente para uso neste processo
-    process_sem = sem_open("/t1_process_sem", 0);
+    process_sem = sem_open("/t2_process_sem", 0);
 
     signal(SIGINT, ctrlC_handler);
     signal(SIGUSR1, finalizar);
