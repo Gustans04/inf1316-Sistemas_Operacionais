@@ -102,10 +102,6 @@ test: directories
 	$(CC) $(CFLAGS) $(TESTDIR)/test_main.c aux.c -o $(BINDIR)/test_main
 	
 	@echo "Rodando testes dentro da pasta 'tests'..."
-	# AQUI ESTÁ O TRUQUE:
-	# 1. cd $(TESTDIR): Entra na pasta ../tests
-	# 2. &&: Se entrou com sucesso, executa o comando seguinte
-	# 3. ../bin/test_sfss: Chama o executável (caminho relativo à pasta tests)
 	cd $(TESTDIR) && ../bin/test_sfss
 	@echo ""
 	@echo "Rodando teste do InterController..."

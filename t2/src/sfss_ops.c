@@ -9,6 +9,7 @@
 #include <errno.h>
 
 #include "sfss_ops.h"
+#include "aux.h"
 
 // Função auxiliar para construir o caminho real no servidor
 void build_real_path(char *buffer, int owner, const char *virtual_path)
@@ -52,6 +53,18 @@ int sfss_write(int owner, char *path, char *payload, int offset)
     build_real_path(full_path, owner, path);
     struct stat st;
 
+    // Se offset é 0 e payload é vazio (primeiro byte nulo), o arquivo é removido
+    if (offset == 0 && (payload == NULL || payload[0] == '\0')) 
+    {
+        printf("SFSS: Removendo arquivo via WriteCall (Payload vazio e Offset 0)\n");
+        if (unlink(full_path) < 0) 
+        {
+            // Se falhar (ex: arquivo não existe), retorna erro
+            return -4; 
+        }
+        return 0; // Sucesso, retorna 0 como confirmação
+    }
+
     // Tenta abrir R/W, cria se não existir
     int fd = open(full_path, O_RDWR | O_CREAT, 0666);
     if (fd < 0)
@@ -70,9 +83,12 @@ int sfss_write(int owner, char *path, char *payload, int offset)
         lseek(fd, st.st_size, SEEK_SET);
         int gap_size = offset - st.st_size;
         char *spaces = (char *)malloc(gap_size);
-        memset(spaces, 0x20, gap_size); // 0x20 é o 'whitespace character'
-        write(fd, spaces, gap_size);
-        free(spaces);
+        if (spaces) 
+        {
+            memset(spaces, 0x20, gap_size); // 0x20 é o 'whitespace character'
+            write(fd, spaces, gap_size);
+            free(spaces);
+        }
     }
 
     // Posiciona e escreve o payload de 16 bytes
@@ -139,7 +155,7 @@ int sfss_rem(int owner, char *path, char *name)
 // Implementa a lógica da mensagem DL-REQ/DL-REP
 // Retorna: número de nomes encontrados (nrnames) ou erro
 // Saída: Preenche 'allfilenames' e o array 'positions' (fstlstpositions)
-int sfss_listDir(int owner, char *path, char *allfilenames, struct IndexInfo *positions)
+int sfss_listDir(int owner, char *path, char *allfilenames, IndexInfo *positions)
 {
     char full_path[MAX_PATH_LEN];
     build_real_path(full_path, owner, path);

@@ -5,13 +5,7 @@
 #define MAX_PATH_LEN 1024
 #define BLOCK_SIZE 16
 
-// Estrutura para listagem de diretórios
-struct IndexInfo
-{
-    int start;
-    int end;
-    int type; // 1 = Arquivo (F), 2 = Diretório (D)
-};
+#include "aux.h"
 
 void build_real_path(char *buffer, int owner, const char *virtual_path);
 
@@ -23,6 +17,6 @@ int sfss_add(int owner, char *path, char *dirname);
 
 int sfss_rem(int owner, char *path, char *name);
 
-int sfss_listDir(int owner, char *path, char *allfilenames, struct IndexInfo *positions);
+int sfss_listDir(int owner, char *path, char *allfilenames, IndexInfo *positions);
 
 #endif
