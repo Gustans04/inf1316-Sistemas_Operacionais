@@ -111,6 +111,10 @@ test: directories
 	@echo "Rodando teste do Main..."
 	# Roda o teste Main
 	cd $(TESTDIR) && ../bin/test_main
+	@echo ""
+	@echo "Rodando teste de integração do servidor (UDP)..."
+	$(CC) $(CFLAGS) $(TESTDIR)/test_sfss_server.c aux.c -o $(BINDIR)/test_sfss_server
+	cd $(TESTDIR) && ../bin/test_sfss_server
 
 # Roda apenas o teste do SFSS
 test-sfss: directories
@@ -133,6 +137,13 @@ test-main: directories
 	@echo "Rodando teste Main..."
 	cd $(TESTDIR) && ../bin/test_main
 
+# Roda o teste de integração do Servidor
+test-server: directories $(SFSS_TARGET)
+	@echo "Compilando teste de Integração Server..."
+	$(CC) $(CFLAGS) $(TESTDIR)/test_sfss_server.c aux.c -o $(BINDIR)/test_sfss_server
+	@echo "Rodando teste de Integração Server..."
+	cd $(TESTDIR) && ../bin/test_sfss_server
+
 # Help
 help:
 	@echo "Available targets:"
@@ -141,6 +152,7 @@ help:
 	@echo "  test-sfss            - Build and run SFSS unit tests only"
 	@echo "  test-intercontroller - Build and run InterController unit tests only"
 	@echo "  test-main            - Build and run Main unit tests only"
+	@echo "  test-server          - Build and run SFSS Server Integration tests"
 	@echo "  clean                - Remove build files and directories"
 	@echo "  rebuild              - Clean and rebuild everything"
 	@echo "  run-main             - Run the Kernel Simulator"
