@@ -479,17 +479,13 @@ int main()
                     int app_idx = response.owner - 1;
                     if (app_idx >= 0 && app_idx < NUM_APP && numFiles[app_idx] < 50) {
                         int file_idx = numFiles[app_idx];
-                        char** parts = split_string(response.call.writecall.path, "/");
-                        listaFiles[app_idx][file_idx] = malloc(strlen(parts[1]) + 1);
+                        listaFiles[app_idx][file_idx] = malloc(strlen(response.call.writecall.path) + 1);
                         if (listaFiles[app_idx][file_idx] != NULL) {
-                            strcpy(listaFiles[app_idx][file_idx], parts[1]);
+                            strcpy(listaFiles[app_idx][file_idx], response.call.writecall.path);
                             numFiles[app_idx]++;
                             printf("Kernel: Armazenado arquivo %d para o processo %d: %s\n", 
                                    file_idx, response.owner, listaFiles[app_idx][file_idx]);
                         }
-                        free(parts[0]);
-                        free(parts[1]);
-                        free(parts);
                     }
                 }
                 if (response.tipo_syscall == 1 && response.call.readcall.offset >= 0 ) {
@@ -497,17 +493,13 @@ int main()
                     int app_idx = response.owner - 1;
                     if (app_idx >= 0 && app_idx < NUM_APP && numFiles[app_idx] < 50) {
                         int file_idx = numFiles[app_idx];
-                        char** parts = split_string(response.call.readcall.path, "/");
-                        listaFiles[app_idx][file_idx] = malloc(strlen(parts[1]) + 1);
+                        listaFiles[app_idx][file_idx] = malloc(strlen(response.call.readcall.path) + 1);
                         if (listaFiles[app_idx][file_idx] != NULL) {
-                            strcpy(listaFiles[app_idx][file_idx], parts[1]);
+                            strcpy(listaFiles[app_idx][file_idx], response.call.readcall.path);
                             numFiles[app_idx]++;
                             printf("Kernel: Armazenado arquivo %d para o processo %d: %s\n", 
                                    file_idx, response.owner, listaFiles[app_idx][file_idx]);
                         }
-                        free(parts[0]);
-                        free(parts[1]);
-                        free(parts);
                     }
                 }
                 inserirNaFilaRequests(filaFiles, response);

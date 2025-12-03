@@ -508,10 +508,10 @@ PID     Diretório Atual                                   Arquivo Atual        
 PID     Arquivos Abertos                                  
 ------------------------------------------------------------------------------------------------------------------------------
 27748   -
-27749   rato.txt            backup.txt          banana.txt      
-27750   backup.txt      
-27751   banana.txt      
-27752   cachorro.txt        foto.txt        
+27749   /A2/rato.txt            /A0/backup.txt          /A2/banana.txt      
+27750   /A3/backup.txt      
+27751   /A3/banana.txt      
+27752   /A5/cachorro.txt        /A5/foto.txt        
 ------------------------------------------------------------------------------------------------------------------------------
 
 10.4 Análise das Informações
