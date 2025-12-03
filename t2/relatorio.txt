@@ -1,101 +1,183 @@
 ===============================================================
-RELATÓRIO: SIMULADOR DE KERNEL COM ESCALONAMENTO DE PROCESSOS
+RELATÓRIO: MICRO-KERNEL COM SISTEMA DE ARQUIVOS REMOTO VIA UDP
 Gustavo Rocha (2310505)
 Maria Luiza Dutra (2310509)
 ===============================================================
 
 1. INTRODUÇÃO
 --------------
-Este relatório descreve a implementação de um simulador de kernel de sistema operacional que gerencia 5 processos de aplicação e simula operações de entrada/saída em 2 dispositivos  diferentes. O sistema implementa um escalonador preemptivo com time-sharing e gerencia chamadas de sistema (syscalls) para acesso aos dispositivos.
+Este relatório descreve a implementação de um micro-kernel de sistema operacional que gerencia 5 processos de aplicação (A1-A5) e implementa acesso a arquivos e diretórios remotos através de um Simple File System Server (SFSS). O sistema implementa um escalonador preemptivo com time-sharing e gerencia chamadas de sistema (syscalls) para operações de sistema de arquivos via protocolo UDP.
 
-O projeto é composto por três componentes principais:
-- KernelSim: Gerencia processos, atende chamadas de sistema e trata interrupções
-- InterControllerSim: Gera interrupções para time-slice e finalização de E/S
-- Applications (A1-A5): Processos que executam operações e fazem syscalls
+O projeto é uma extensão do Trabalho 1, evoluindo de um simulador de dispositivos genéricos para um sistema que implementa operações reais de sistema de arquivos. O sistema agora processa syscalls concretas para criar, remover, ler e modificar arquivos e diretórios remotos, utilizando comunicação UDP entre o kernel e o servidor de arquivos.
+
+O projeto é composto por quatro componentes principais:
+- KernelSim: Micro-kernel que gerencia processos, syscalls e comunicação UDP
+- InterControllerSim: Gera interrupções para time-slice e notifica conclusão de operações
+- Applications (A1-A5): Processos que executam syscalls para operações de arquivos/diretórios
+- SFSS: Servidor de sistema de arquivos que processa requisições via UDP
 
 2. ARQUITETURA DO SISTEMA
 ------------------------
 2.1 Estrutura Geral
 
-O sistema é organizado em diversos processos que se comunicam usando mecanismos de IPC:
+O sistema é organizado em diversos processos que se comunicam usando mecanismos de IPC e protocolos de rede:
 - 1 processo Kernel (main.c)
 - 1 processo InterController (intercontroller.c)
 - 5 processos Application (application.c)
+- 1 processo SFSS Server (sfss_server.c)
 
 A comunicação entre os componentes ocorre via:
-- Memória compartilhada: para armazenar informações de contexto dos processos
-- FIFOs nomeadas: para simular interrupções (IRQs) e chamadas de sistema
-- Semáforos: para controle de acesso à memória compartilhada
+- Comunicação UDP: entre Kernel e SFSS Server para operações de sistema de arquivos
+- Memória compartilhada: para armazenar informações de contexto dos processos e syscalls entre Kernel e Applications
+- FIFOs nomeadas: para simular interrupções (IRQs)
+- Semáforos nomeados: para controle de acesso à memória compartilhada
 - Sinais UNIX: para controle de execução dos processos
 
 2.2 Estruturas de Dados
 
 O sistema utiliza as seguintes estruturas principais:
-- InfoProcesso: mantém informações de contexto de cada processo, incluindo:
-  * PID (identificador do processo)
-  * PC (program counter)
-  * Estado (PRONTO, EXECUTANDO, BLOQUEADO, TERMINADO)
-  * Dispositivo requisitado (D1 ou D2)
-  * Operação solicitada (R, W ou X)
-  * Quantidade de acessos a cada dispositivo
-  * Flag de execução
 
-- FilaApps: implementa filas para gerenciar processos em diferentes estados:
-  * Fila de processos prontos
-  * Fila de processos aguardando D1
-  * Fila de processos aguardando D2
+2.2.1 InfoProcesso
+Mantém informações de contexto de cada processo:
+- pid_t pid: identificador do processo
+- int pc: program counter
+- EstadoProcesso estado: estado atual (PRONTO, EXECUTANDO, ESPERANDO, BLOQUEADO, TERMINADO)
+- SysCallInfo syscall: estrutura para armazenar dados das syscalls
+- int executando: flag indicando se o processo está em execução
+
+2.2.2 SysCallInfo
+Estrutura para gerenciar syscalls dos processos:
+- int novo: indica se há uma nova syscall a ser processada (0=não, 1=sim)
+- int lido: indica se há uma resposta para ser lida pela aplicação (0=não, 1=sim)
+- int tipo_syscall: tipo da syscall (0=WriteCall, 1=ReadCall, 2=AddCall, 3=RemCall, 4=ListDirCall, -1=nenhuma)
+- union call: união contendo dados específicos de cada tipo de syscall
+
+2.2.3 Estruturas de Syscalls
+
+WriteCall - escreve 16 bytes em arquivo:
+- char path[MAX_NAME_LEN]: caminho do arquivo
+- int len: tamanho do nome do caminho
+- char payload[16]: dados a serem escritos (exatamente 16 bytes)
+- int offset: posição no arquivo onde escrever (múltiplo de 16)
+
+ReadCall - lê 16 bytes de arquivo:
+- char path[MAX_NAME_LEN]: caminho do arquivo
+- int len: tamanho do nome do caminho
+- char buffer[16]: buffer para armazenar dados lidos
+- int offset: posição no arquivo para ler (múltiplo de 16)
+
+AddCall - cria novo subdiretório:
+- char path[MAX_NAME_LEN]: caminho onde criar o diretório
+- int len1: tamanho do nome do caminho
+- char dirname[MAX_NAME_LEN]: nome do novo diretório
+- int len2: tamanho do nome do novo diretório
+
+RemCall - remove arquivo ou diretório:
+- char path[MAX_NAME_LEN]: caminho do arquivo/diretório a ser removido
+- int len1: tamanho do nome do caminho
+- char name[MAX_NAME_LEN]: nome do arquivo/diretório a ser removido
+- int len2: tamanho do nome do arquivo/diretório
+
+ListDirCall - lista conteúdo de diretório:
+- char path[MAX_NAME_LEN]: caminho do diretório
+- int len1: tamanho do nome do caminho
+- char alldirinfo[2048]: string contendo todos os nomes concatenados
+- IndexInfo fstlstpositions[40]: array com informações de posição de cada nome
+- int nrnames: número total de entradas no diretório
+
+2.2.4 IndexInfo
+Estrutura para indexação de entradas de diretório:
+- int start: posição inicial do nome na string alldirinfo
+- int end: posição final do nome na string alldirinfo
+- int type: tipo da entrada (1=Arquivo, 2=Diretório)
+
+2.2.5 CallRequest
+Estrutura para comunicação UDP entre Kernel e SFSS:
+- int tipo_syscall: tipo da syscall (0-4)
+- int owner: número da aplicação requisitante (1-5 para A1-A5)
+- union call: união contendo dados específicos da syscall
+
+2.2.6 FilaRequests
+Implementa filas circulares para gerenciar requisições:
+- CallRequest lista[NUM_APP]: array circular de requisições
+- int inicio: índice do primeiro elemento
+- int fim: índice do último elemento
+- int qtd: quantidade de elementos na fila
+
+Duas instâncias são utilizadas:
+- File-Request-Queue: para operações de arquivo (read, write)
+- Dir-Request-Queue: para operações de diretório (add, rem, listdir)
+
+2.2.7 FilaApps
+Implementa filas circulares para gerenciar PIDs de processos:
+- pid_t lista[NUM_APP]: array circular de PIDs
+- int inicio: índice do primeiro elemento
+- int fim: índice do último elemento
+- int qtd: quantidade de elementos na fila
+
+Utilizada para fila de processos prontos para execução.
 
 3. COMPONENTES DO SISTEMA
 ------------------------
 3.1 Kernel (main.c)
 
-O Kernel é o processo central que:
+O Kernel é o processo central que implementa um micro-kernel:
 - Inicializa o ambiente (semáforos, memória compartilhada, FIFOs)
 - Cria os processos Application e o InterController
 - Mantém um escalonador que alterna entre processos prontos
-- Atende chamadas de sistema para acesso a dispositivos
+- Processa syscalls para operações de sistema de arquivos
+- Gerencia comunicação UDP com o SFSS Server
 - Trata interrupções do InterController (IRQs)
+- Mantém duas filas separadas para requisições de arquivo e diretório
 - Gerencia os estados dos processos
 
 Funcionamento:
 a) Inicialização:
-   - Cria semáforos para sincronização
+   - Cria semáforos nomeados para sincronização
    - Aloca memória compartilhada para comunicação
-   - Cria FIFOs para IRQs e syscalls
+   - Cria FIFOs para IRQs
+   - Inicializa cliente UDP para comunicação com SFSS
    - Cria o processo InterController
    - Cria 5 processos Application e os coloca na fila de prontos
    - Seleciona um processo para iniciar a execução
 
 b) Loop principal:
-   - Monitora FIFOs para receber IRQs e syscalls
+   - Monitora FIFOs para receber IRQs
+   - Monitora syscalls dos processos Application via memória compartilhada
+   - Monitora respostas UDP do SFSS Server
    - Processa interrupções:
      * IRQ0 (TimeSlice): Preempta o processo atual e escalona outro
-     * IRQ1 (Dispositivo D1): Desbloqueia o primeiro processo esperando por D1
-     * IRQ2 (Dispositivo D2): Desbloqueia o primeiro processo esperando por D2
-   - Processa syscalls:
-     * Bloqueia o processo solicitante
-     * Registra qual dispositivo e operação foram requisitados
-     * Coloca o processo na fila correspondente
-     * Escalona um novo processo se necessário
+     * IRQ1 (Arquivo): Entrega resposta da File-Request-Queue ao processo correspondente
+     * IRQ2 (Diretório): Entrega resposta da Dir-Request-Queue ao processo correspondente
+   - Processa syscalls dos aplicativos:
+     * WriteCall: Escreve 16 bytes em arquivo
+     * ReadCall: Lê 16 bytes de arquivo
+     * AddCall: Cria novo diretório
+     * RemCall: Remove arquivo ou diretório
+     * ListDirCall: Lista conteúdo de diretório
+   - Envia requisições UDP para o SFSS Server
+   - Enfileira respostas UDP nas filas apropriadas
+   - Escalona processos conforme necessário
    - Verifica se todos os processos terminaram para encerrar o sistema
-   - Monitora e gerencia processos terminados
 
 3.2 InterController (intercontroller.c)
 
 O InterController é responsável por:
 - Gerar interrupções de timer (IRQ0) em intervalos regulares (500ms)
-- Gerar interrupções dos dispositivos (IRQ1, IRQ2) com probabilidades específicas
+- Gerar interrupções de conclusão de operações com probabilidades específicas:
+  * IRQ1 com probabilidade P1 = 0.2 (operações de arquivo)
+  * IRQ2 com probabilidade P2 = 0.01 (operações de diretório)
 - Exibir o estado dos processos quando recebe sinal SIGINT (Ctrl+C)
 
 Funcionamento:
 - Executa um loop infinito com sleep de 500ms
 - Envia IRQ0 (TimeSlice) a cada iteração
-- Envia IRQ1 com probabilidade P1 = 0.2 (20%)
-- Envia IRQ2 com probabilidade P2 = 0.01 (1%)
+- Envia IRQ1 com 20% de probabilidade (operações de arquivo)
+- Envia IRQ2 com 1% de probabilidade (operações de diretório)
 - Trata sinais:
   * SIGINT (Ctrl+C): Pausa os processos e exibe seus estados
   * SIGUSR1: Finaliza o InterController quando o Kernel encerra
-  * SIGCONT: Retoma o InterController Sim e os demais processos
+  * SIGCONT: Retoma o InterController e os demais processos
 
 3.3 Applications (application.c)
 
@@ -104,10 +186,27 @@ Cada processo Application:
 - Incrementa seu PC (Program Counter) a cada iteração
 - Realiza sleeps de 500ms no início e fim de cada iteração
 - Tem 15% de chance de realizar uma syscall a cada iteração
-- Seleciona aleatoriamente:
-  * Dispositivo (D1 ou D2)
-  * Operação (R=leitura, W=escrita, X=ambas)
-- Termina após MAX iterações e atualiza seu estado
+- Seleciona aleatoriamente entre as 5 syscalls disponíveis:
+  * WriteCall, ReadCall, AddCall, RemCall, ListDirCall
+- Gera parâmetros aleatórios (paths, offsets, nomes de arquivos/diretórios)
+- Opera apenas em seu home directory (/Ax) ou no compartilhado (/A0)
+- Termina após MAX iterações e atualiza seu estado na memória compartilhada
+
+3.4 SFSS Server (sfss_server.c)
+
+O Simple File System Server:
+- Roda escutando na porta UDP 3000
+- Processa requisições do protocolo SFP (Simple File Protocol)
+- Gerencia sistema de arquivos no diretório SFSS-root-dir/
+- Implementa operações stateless (não mantém estado dos clientes)
+- Suporta operações em blocos de 16 bytes para arquivos
+- Processa mensagens:
+  * RD-REQ/RD-REP: Leitura de arquivos
+  * WR-REQ/WR-REP: Escrita de arquivos
+  * DC-REQ/DC-REP: Criação de diretórios
+  * DR-REQ/DR-REP: Remoção de arquivos/diretórios
+  * DL-REQ/DL-REP: Listagem de diretórios
+- Retorna códigos de erro apropriados para operações inválidas
 
 4. MECANISMOS DE SINCRONIZAÇÃO E COMUNICAÇÃO
 -------------------------------------------
@@ -115,27 +214,36 @@ Cada processo Application:
 
 Usada para armazenar informações de processos acessíveis por todos os componentes:
 - Cada posição armazena uma estrutura InfoProcesso
-- Mantém dados como PC, estado, dispositivo, operação, etc.
+- Mantém dados como PC, estado, syscall atual, etc.
 - Permite que o Kernel e o InterController monitorem os processos
+- Cada processo Application tem acesso para atualizar seu próprio estado
 
-4.2 FIFOs (Named Pipes)
+4.2 Comunicação UDP
 
-Implementam a comunicação assíncrona entre os componentes:
+Implementa o protocolo SFP (Simple File Protocol) entre Kernel e SFSS:
+- Cliente UDP no Kernel para enviar requisições
+- Servidor UDP no SFSS para processar operações
+- Estruturas CallRequest para requisições e respostas
+- Suporte a operações em blocos de 16 bytes
+
+4.3 FIFOs (Named Pipes)
+
+Implementam a comunicação de interrupções:
 - FIFO_IRQ: InterController → Kernel (transmite IRQ0, IRQ1, IRQ2)
-- FIFO_SYSCALL: Applications → Kernel (transmite solicitações de syscall)
 
-4.3 Semáforos
+4.4 Semáforos Nomeados
 
 Protegem o acesso concorrente à memória compartilhada:
-- Um semáforo nomeado (/t1_process_sem) controla o acesso
-- Funções auxiliares (sem_lock/unlock) encapsulam a lógica de semáforos
+- Semáforo nomeado (/t2_process_sem) controla o acesso
+- Funções auxiliares (sem_lock/unlock) encapsulam a lógica
 - Usado sempre que há escrita/leitura na memória compartilhada
+- Permite sincronização entre múltiplos processos
 
-4.4 Sinais UNIX
+4.5 Sinais UNIX
 
 Implementam o controle de execução dos processos:
 - SIGSTOP: suspende a execução de um processo
-- SIGCONT: retoma a execução de um processo suspenso / retoma o InterController Sim que foi interrompido
+- SIGCONT: retoma a execução de um processo suspenso
 - SIGINT: usado para pausar o sistema e exibir o status
 - SIGUSR1: sinaliza ao InterController para encerrar
 
@@ -148,23 +256,33 @@ O escalonador implementa uma política preemptiva por tempo:
 - Ao ser preemptado, o processo atual é colocado na fila de prontos
 - Um novo processo é selecionado da fila de prontos
 - Se não houver processos prontos, o CPU fica ocioso
+- Processos que fazem syscalls são colocados em estado BLOQUEADO até receberem resposta
 
-5.2 Gestão de Dispositivos
+5.2 Gestão de Sistema de Arquivos
 
-O gerenciamento de dispositivos de E/S:
-- Processos solicitam acesso a dispositivos via syscall(Dx, Op)
-- O processo é bloqueado e inserido na fila do dispositivo solicitado
-- Quando o InterController gera uma IRQ do dispositivo correspondente:
-  * O primeiro processo na fila é desbloqueado
-  * O estado do processo é alterado para PRONTO
-  * O processo é colocado na fila de prontos para ser escalonado
+O gerenciamento de operações de sistema de arquivos:
+- Processos fazem syscalls que são convertidas em requisições UDP
+- O Kernel envia requisições para o SFSS Server via UDP
+- Respostas são enfileiradas em File-Request-Queue ou Dir-Request-Queue conforme o tipo
+- IRQ1 (arquivo) e IRQ2 (diretório) sinalizam quando entregar respostas aos processos
+- Cada processo opera apenas em seu home directory (/Ax) ou no compartilhado (/A0)
 
 5.3 Tratamento de Interrupções
 
 O tratamento de IRQs é implementado pelo Kernel:
 - IRQ0 (TimeSlice): preempta o processo atual e escalona outro
-- IRQ1: libera o primeiro processo aguardando pelo D1
-- IRQ2: libera o primeiro processo aguardando pelo D2
+- IRQ1: entrega a resposta mais antiga da File-Request-Queue ao processo correspondente
+- IRQ2: entrega a resposta mais antiga da Dir-Request-Queue ao processo correspondente
+
+5.4 Protocolo SFP (Simple File Protocol)
+
+Implementação do protocolo de comunicação entre Kernel e SFSS:
+- RD-REQ/RD-REP: Leitura de 16 bytes de arquivo
+- WR-REQ/WR-REP: Escrita de 16 bytes em arquivo
+- DC-REQ/DC-REP: Criação de diretório
+- DR-REQ/DR-REP: Remoção de arquivo/diretório
+- DL-REQ/DL-REP: Listagem de conteúdo de diretório
+- Cada mensagem contém owner para identificar o processo requisitante
 
 6. FUNÇÕES AUXILIARES
 --------------------
@@ -173,14 +291,86 @@ O módulo aux.c/aux.h implementa diversas funções auxiliares:
 - Gerenciamento de semáforos: init_sem(), sem_lock(), sem_unlock(), cleanup_sem()
 - Criação e gerenciamento de FIFOs: criaFIFO(), abreFIFO()
 - Funções para filas: inicializarFila(), inserirNaFila(), removerDaFila(), etc.
-- Busca de processos: encontrarAplicacaoPorPID(), processosAcabaram()
-- Exibição de status: print_status()
+- Funções para filas de requisições: inicializarFilaRequests(), inserirNaFilaRequests(), etc.
+- Comunicação UDP: iniciaUdpClient(), enviaUdpRequest(), recebeUdpResponse(), encerraUdpClient()
+- Busca de processos: encontrarAplicacaoPorPID(), numeroDoProcesso()
+- Exibição de status: print_status(), split_string(), escape()
+- Verificação de término: processosAcabaram()
 
-7. FLUXO DE EXECUÇÃO DO SISTEMA
+7. SISTEMA DE ARQUIVOS SIMULADO
+------------------------------
+7.1 Estrutura do SFSS
+
+O Simple File System Server (SFSS) implementa:
+- Diretório raiz SFSS-root-dir/ contendo homes dos processos
+- Estrutura: SFSS-root-dir/A0/, SFSS-root-dir/A1/, ..., SFSS-root-dir/A5/
+- A0 é um diretório compartilhado acessível por todos os processos
+- A1-A5 são homes privados de cada processo de aplicação
+- Operações sempre em blocos de 16 bytes para arquivos
+- Servidor stateless que não mantém informações de estado dos clientes
+
+7.2 Operações Implementadas
+
+- WriteCall: Escreve 16 bytes em arquivo (cria se não existir)
+- ReadCall: Lê 16 bytes de arquivo a partir de offset especificado
+- AddCall: Cria novo subdiretório no path especificado
+- RemCall: Remove arquivo ou diretório
+- ListDirCall: Lista todos os arquivos e subdiretórios de um diretório
+
+8. TESTES IMPLEMENTADOS
+---------------------
+O projeto inclui um leque abrangente de testes unitários para validar o funcionamento de cada componente:
+
+8.1 Testes do SFSS (test_sfss_ops.c)
+
+Validam as operações do sistema de arquivos:
+- Teste de escrita: Verifica criação e escrita em arquivos
+- Teste de leitura: Valida leitura de dados previamente escritos
+- Teste de criação de diretórios: Testa a função de adicionar diretórios
+- Teste de listagem: Verifica a funcionalidade de listar conteúdo de diretórios
+- Teste de integridade: Confirma que dados são mantidos corretamente
+
+8.2 Testes do InterController (test_intercontroller.c)
+
+Verificam o funcionamento do controlador de interrupções:
+- Teste de criação de FIFO: Valida criação e comunicação via FIFOs
+- Teste de memória compartilhada: Verifica acesso e manipulação de dados compartilhados
+- Teste de leitura de informações: Valida a leitura de dados dos processos
+- Teste de geração de IRQs: Simula e verifica a geração de interrupções
+- Teste de handlers de sinal: Valida configuração de tratamento de sinais
+
+8.3 Testes do Kernel (test_main.c)
+
+Testam o funcionamento do micro-kernel:
+- Teste de inicialização: Verifica criação de semáforos, memória compartilhada e FIFOs
+- Teste de escalonamento: Valida o algoritmo de escalonamento Round-Robin
+- Teste de processamento de IRQs: Verifica tratamento correto de interrupções
+- Teste de comunicação UDP: Valida envio e recepção de mensagens para o SFSS
+- Teste de filas de requisições: Verifica funcionamento das filas separadas para arquivo e diretório
+- Teste de syscalls: Valida processamento e conversão de syscalls em requisições UDP
+- Teste de estados de processo: Verifica transições corretas entre estados
+
+8.4 Execução dos Testes
+
+Os testes podem ser executados individualmente ou em conjunto:
+- `make test`: Executa todos os testes
+- `make test-sfss`: Executa apenas testes do sistema de arquivos
+- `make test-intercontroller`: Executa apenas testes do InterController
+- `make test-main`: Executa apenas testes do Kernel
+
+Cada teste:
+- Configurar ambiente isolado para evitar interferências
+- Limpa recursos após execução
+- Fornece output detalhado sobre sucessos e falhas
+- Inclui verificações de integridade e casos extremos
+
+9. FLUXO DE EXECUÇÃO DO SISTEMA
 ------------------------------
 
 1. Inicialização:
+   - O SFSS Server inicia escutando na porta 3000
    - O Kernel inicia semáforos, memória compartilhada e FIFOs
+   - O Kernel inicializa cliente UDP para comunicação com SFSS
    - O Kernel cria o InterController e 5 processos Application
    - Todos os processos são colocados na fila de prontos
    - O Kernel coloca o primeiro processo em execução
@@ -188,55 +378,198 @@ O módulo aux.c/aux.h implementa diversas funções auxiliares:
 2. Operação normal:
    a) O InterController gera IRQs periodicamente:
       - IRQ0 a cada 500ms (time slice)
-      - IRQ1 e IRQ2 com probabilidades definidas
+      - IRQ1 com probabilidade 0.2 (conclusão de operação de arquivo)
+      - IRQ2 com probabilidade 0.01 (conclusão de operação de diretório)
 
    b) As Applications executam seu loop:
       - Incrementam PC
-      - Podem gerar syscalls aleatoriamente
+      - Podem gerar syscalls aleatoriamente (WriteCall, ReadCall, AddCall, RemCall, ListDirCall)
+      - Operam apenas em seus homes (/Ax) ou no diretório compartilhado (/A0)
+      - Checam a chegada de respostas para suas syscalls
       - Terminam após MAX iterações
 
    c) O Kernel gerencia o sistema:
-      - Recebe e processa IRQs
-      - Atende syscalls
+      - Recebe e processa IRQs do InterController
+      - Processa syscalls dos Applications
+      - Converte syscalls em requisições UDP para o SFSS
+      - Recebe respostas UDP do SFSS e as enfileira apropriadamente
+      - Entrega respostas aos processos quando recebe IRQ1 ou IRQ2
+      - Salva estados dos processos na memória compartilhada
       - Escalona processos conforme necessário
       - Monitora o término dos processos
 
-3. Finalização:
-   - Quando todas as Applications terminam, o Kernel envia SIGUSR1 ao InterController
-   - O Kernel exibe o status final dos processos
-   - O sistema libera recursos (semáforos, memória compartilhada, FIFOs)
+   d) O SFSS Server processa requisições:
+      - Recebe requisições UDP do Kernel
+      - Executa operações no sistema de arquivos (SFSS-root-dir/)
+      - Envia respostas UDP de volta ao Kernel
+      - Mantém operação stateless
 
-8. ESTRUTURA DO PROJETO
+3. Exemplos de Respostas do Sistema:
+   
+   O sistema fornece feedback sobre o resultado das operações realizadas pelos processos de aplicação. Exemplos típicos incluem:
+
+   Sucesso em listagem de diretório:
+   ====== Resposta recebida por 9839 [A5] ======
+   LIST(/A5) --> Sucesso!
+   /rato
+   /backup
+   /log
+   ======================================
+
+   Erro em operação de leitura:
+   ====== Resposta recebida por 9839 [A5] ======
+   Ocorreu um erro na READ!
+   ======================================
+
+   Sucesso em escrita de arquivo:
+   ====== Resposta recebida por 11581 [A5] ======
+   WRITE(/A5/dados.txt, "conteudo_exemplo", 16) --> Sucesso!
+   ======================================
+
+   Erro em operação de remoção:
+   ====== Resposta recebida por 12226 [A3] ======
+   Ocorreu um erro na REMOVE!
+   ======================================
+
+   Sucesso em leitura de arquivo:
+   ====== Resposta recebida por 10423 [A2] ======
+   READ(/A2/relatorio.txt, 0) --> Sucesso!
+   Dados lidos: "DADO-A4-0987"
+   ======================================
+
+   Sucesso em criação de diretório:
+   ====== Resposta recebida por 11204 [A1] ======
+   ADD(/A1/novo_diretorio) --> Sucesso!
+   Diretório criado com sucesso!
+   ======================================
+
+4. Finalização:
+   - Quando todas as Applications terminam, o Kernel envia SIGUSR1 ao InterController
+   - O Kernel exibe o status final dos processos e arquivos acessados
+   - O sistema libera recursos (semáforos, memória compartilhada, FIFOs, conexões UDP)
+
+10. INFORMAÇÕES REGISTRADAS NO KERNEL
+-----------------------------------
+
+O micro-kernel mantém um registro detalhado de todas as operações e estados dos processos durante a execução. Essas informações são essenciais para o gerenciamento do sistema e são exibidas ao final da execução ou quando o usuário pressiona Ctrl+C.
+
+10.1 Tabela de Status dos Processos
+
+A primeira tabela apresenta informações completas sobre cada processo de aplicação:
+- **PID**: Identificador único do processo no sistema
+- **PC**: Program Counter, indicando quantas iterações o processo executou
+- **ESTADO**: Estado atual do processo (PRONTO, EXECUTANDO, ESPERANDO, BLOQUEADO, TERMINADO)
+- **OPERAÇÃO**: Última syscall realizada pelo processo
+- **PARAMETROS**: Parâmetros específicos da syscall, incluindo paths, offsets e dados
+- **RESPONDIDO**: Indica se a operação recebeu resposta do SFSS Server
+
+10.2 Posições em Arquivos
+
+A segunda tabela rastreia as posições correntes de cada processo nos arquivos:
+- **Diretório Atual**: Diretório onde o processo está operando
+- **Arquivo Atual**: Nome do arquivo sendo manipulado
+- **Posição Atual**: Offset no arquivo (posição do próximo byte a ser lido/escrito)
+
+10.3 Arquivos Abertos por Aplicação
+
+A terceira tabela lista todos os arquivos que cada processo acessou durante sua execução, fornecendo um histórico das operações de arquivo realizadas.
+
+Exemplo de saída do sistema:
+
+=== Tabela Final dos Processos ===
+=== Tabela de Status dos Processos ===
+PID     PC   ESTADO       OPERAÇÃO     PARAMETROS                                                                       RESPONDIDO  
+------------------------------------------------------------------------------------------------------------------------------
+13403   5    TERMINADO    AddCall      (/A0/foto, 8, foto, 4)                                                           SIM         
+13404   5    TERMINADO    AddCall      (/A2/banana, 10, banana, 6)                                                      SIM         
+13405   5    TERMINADO    WriteCall    (/A3/trabalho.txt, 16, , 48)                                                     SIM         
+13406   5    TERMINADO    ReadCall     (/A0/projeto.txt, -1, &buffer, -1)                                               SIM         
+13407   5    TERMINADO    RemCall      (/A0, -1, rato, 4)                                                               SIM         
+------------------------------------------------------------------------------------------------------------------------------
+
+=== Posições em Arquivos ===
+PID     Diretório Atual                                   Arquivo Atual                       Posição Atual
+------------------------------------------------------------------------------------------------------------------------------
+13403   /A0/foto                                           -                                   -              
+13404   /A2/banana                                         -                                   -              
+13405   /A3                                                trabalho.txt                        64             
+13406   /A0                                                projeto.txt                         15             
+13407   -                                                  -                                   -              
+------------------------------------------------------------------------------------------------------------------------------
+
+=== Arquivos Abertos por Aplicação ===
+PID     Arquivos Abertos                                  
+------------------------------------------------------------------------------------------------------------------------------
+13403   relatorio.txt                                     
+13404   relatorio.txt                                     
+13405   trabalho.txt                                      
+13406   -
+13407   -
+------------------------------------------------------------------------------------------------------------------------------
+
+10.4 Análise das Informações
+
+O kernel utiliza essas informações para:
+- **Controle de Execução**: Rastreamento do estado de cada processo
+- **Gerenciamento de Arquivo**: Manutenção da posição corrente em arquivos abertos
+- **Diagnóstico**: Identificação de erros através de valores negativos nos parâmetros
+- **Estatísticas**: Análise do comportamento e uso do sistema pelos processos
+
+Os valores negativos nos parâmetros indicam erros retornados pelo SFSS Server, como tentativas de acesso a arquivos inexistentes ou operações em diretórios inválidos.
+
+11. ESTRUTURA DO PROJETO
 ---------------------
 
 O projeto está organizado nos seguintes arquivos:
-- main.c: implementação do Kernel
+- main.c: implementação do micro-kernel
 - intercontroller.c: implementação do InterController
 - application.c: implementação das Applications
+- sfss_server.c: implementação do Simple File System Server
+- sfss_ops.c: implementação das operações de sistema de arquivos
 - aux.c/aux.h: funções e estruturas auxiliares
-- Makefile: scripts para compilação e execução
+- tests/: diretório contendo testes unitários para cada componente
+- Makefile: scripts para compilação, execução e testes
 
 Para compilar e executar o projeto:
 - make: compila todos os componentes
-- make run-all: executa o sistema completo
+- make run-all: executa o micro-kernel, InterController e Applications
+- make run-sfss: executa apenas o SFSS Server
 - make clean: remove arquivos compilados e FIFOs
 - make rebuild: limpa e recompila o projeto
+- make test: executa todos os testes unitários
 
-Para interromper e retomar o InterController Sim:
-- CTRL-C ou kill -INT <pid>: interrompe todos os processos e faz o InterController Sim exibir o contexto das aplicações
-- kill -CONT <pid>: retoma o InterController Sim e todos os processos de onde pararam
+Para testes específicos:
+- make test-sfss: testa operações do sistema de arquivos
+- make test-intercontroller: testa o InterController
+- make test-main: testa o micro-kernel
 
-9. CONCLUSÃO
+Para controle durante execução:
+- CTRL-C: exibe status atual dos processos e arquivos, mas continua execução
+- kill -TERM: encerra o sistema graciosamente
+
+12. CONCLUSÃO
 -----------
 
-Este sistema implementa com sucesso um simulador de kernel que gerencia processos e dispositivos, demonstrando conceitos fundamentais de sistemas operacionais:
+Este sistema implementa com sucesso um micro-kernel que gerencia processos e operações de sistema de arquivos remotas, demonstrando conceitos avançados de sistemas operacionais:
 
-- Escalonamento preemptivo e time-sharing
-- Comunicação e sincronização entre processos
-- Tratamento de interrupções
-- Gerenciamento de dispositivos de E/S
-- Chamadas de sistema
-- Troca de contexto
+- Micro-kernel com syscalls específicas para sistema de arquivos
+- Escalonamento preemptivo e time-sharing com filas separadas para diferentes tipos de operação
+- Comunicação e sincronização entre processos usando múltiplas tecnologias (UDP, memória compartilhada, semáforos, FIFOs)
+- Protocolo de rede customizado (SFP) para operações de sistema de arquivos
+- Servidor de sistema de arquivos stateless com operações em blocos
+- Tratamento de interrupções com diferentes probabilidades para diferentes tipos de operação
+- Sistema de permissões com homes privados e área compartilhada
+- Gerenciamento robusto de recursos e estados de processo
+- Leque completo de testes unitários para validação de cada componente
 
-O simulador permite visualizar na prática como esses mecanismos funcionam em conjunto para gerenciar recursos e processos em um sistema operacional, fornecendo um exemplo didático dos conceitos estudados na disciplina INF1316 - Sistemas Operacionais.
+O simulador evoluiu significativamente do Trabalho 1, transformando-se de um sistema de dispositivos genéricos para um micro-kernel real que implementa operações concretas de sistema de arquivos. A adição da comunicação UDP, do servidor SFSS, e das syscalls específicas para arquivos e diretórios torna o sistema muito mais próximo de um ambiente real de sistemas operacionais.
 
+A implementação demonstra na prática conceitos fundamentais como:
+- Separação entre espaço de usuário e kernel
+- Comunicação cliente-servidor via rede
+- Gerenciamento de estado de processos e contexto
+- Sincronização entre múltiplos processos concorrentes
+- Design de protocolos de rede para sistemas distribuídos
+- Testes automatizados para sistemas complexos
+
+O sistema fornece um exemplo didático abrangente dos conceitos estudados na disciplina INF1316 - Sistemas Operacionais, especialmente para micro-kernels, sistemas de arquivos distribuídos, e comunicação interprocessos em ambientes de rede.
