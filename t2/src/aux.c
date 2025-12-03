@@ -323,38 +323,58 @@ void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
         {
         case 0: // WriteCall
             parts = split_string(processos[i].syscall.call.writecall.path, "/");
-
-            snprintf(dir, sizeof(dir), "%s", parts[0]);
-            strcpy(file, parts[1]);
-            if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
-                aux = processos[i].syscall.call.writecall.offset + 16;
-            else
-                aux = processos[i].syscall.call.writecall.offset;
-            sprintf(pos, "%d", aux);
+            if (parts && parts[0] && parts[1]) {
+                snprintf(dir, sizeof(dir), "%s", parts[0]);
+                strcpy(file, parts[1]);
+                if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
+                    aux = processos[i].syscall.call.writecall.offset + 16;
+                else
+                    aux = processos[i].syscall.call.writecall.offset;
+                sprintf(pos, "%d", aux);
+            }
+            else {
+                snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.writecall.path);
+            }
             break;
         case 1: // ReadCall
             parts = split_string(processos[i].syscall.call.readcall.path, "/");
-
-            snprintf(dir, sizeof(dir), "%s", parts[0]);
-            strcpy(file, parts[1]);
-            if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
-                aux = processos[i].syscall.call.readcall.offset + 16;
-            else
-                aux = processos[i].syscall.call.readcall.offset;
-            sprintf(pos, "%d", aux);
+            if (parts && parts[0] && parts[1]) {
+                snprintf(dir, sizeof(dir), "%s", parts[0]);
+                strcpy(file, parts[1]);
+                if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
+                    aux = processos[i].syscall.call.readcall.offset + 16;
+                else
+                    aux = processos[i].syscall.call.readcall.offset;
+                sprintf(pos, "%d", aux);
+            }
+            else {
+                snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.readcall.path);
+            }
             break;
         case 2: // AddCall
-            snprintf(dir, sizeof(dir), "%s/%s",
-                     processos[i].syscall.call.addcall.path,
-                     processos[i].syscall.call.addcall.dirname);
+            snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.addcall.path);
+            strcpy(file, "-");
+            strcpy(pos, "-");
             break;
         case 3: // RemCall
             parts = split_string(processos[i].syscall.call.remcall.path, "/");
-
-            snprintf(dir, sizeof(dir), "%s", parts[0]);
+            if (parts && parts[0]) {
+                if (strlen(parts[0]) == 0 && parts[1]) snprintf(dir, sizeof(dir), "/%s", parts[1]);
+                else snprintf(dir, sizeof(dir), "%s", parts[0]);
+            }
+            else {
+                snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.remcall.path);
+            }
+            strcpy(file, "-");
+            strcpy(pos, "-");
             break;
         case 4: // ListDirCall
             snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.listdircall.path);
+            strcpy(file, "-");
+            strcpy(pos, "-");
+            break;
+        default:
+            // For uninitialized or invalid syscalls, keep default "-" values
             break;
         }
 
@@ -389,10 +409,11 @@ void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
                 if (listaFiles[i][j] == NULL || strlen(listaFiles[i][j]) == 0)
                     break;
                 if (j == 0)
-                    printf("%-50s\n", listaFiles[i][j]);
+                    printf("%-16s", listaFiles[i][j]);
                 else
-                    printf("%-7s %-50s\n", "", listaFiles[i][j]);
+                    printf("%-3s %-16s", "", listaFiles[i][j]);
             }
+            printf("\n");
         }
     }
     printf("------------------------------------------------------------------------------------------------------------------------------\n\n"); // Linha divisória
