@@ -284,7 +284,7 @@ int main()
                 CallRequest wr;
                 wr.tipo_syscall = 0;
                 wr.owner = owner;
-                snprintf(wr.call.writecall.path, sizeof(wr.call.writecall.path), "/A%d/%s", owner, appAtual->syscall.call.writecall.path);
+                snprintf(wr.call.writecall.path, sizeof(wr.call.writecall.path), "%s", appAtual->syscall.call.writecall.path);
                 wr.call.writecall.len = appAtual->syscall.call.writecall.len;
                 snprintf(wr.call.writecall.payload, sizeof(wr.call.writecall.payload), "%s", appAtual->syscall.call.writecall.payload);
                 wr.call.writecall.offset = appAtual->syscall.call.writecall.offset;
@@ -303,7 +303,7 @@ int main()
                 CallRequest rd;
                 rd.tipo_syscall = 1;
                 rd.owner = owner;
-                snprintf(rd.call.readcall.path, sizeof(rd.call.readcall.path), "/A%d/%s", owner, appAtual->syscall.call.readcall.path);
+                snprintf(rd.call.readcall.path, sizeof(rd.call.readcall.path), "%s", appAtual->syscall.call.readcall.path);
                 rd.call.readcall.len = appAtual->syscall.call.readcall.len;
                 memset(rd.call.readcall.buffer, 0, sizeof(rd.call.readcall.buffer));
                 rd.call.readcall.offset = appAtual->syscall.call.readcall.offset;
@@ -321,7 +321,7 @@ int main()
                 CallRequest dc;
                 dc.tipo_syscall = 2;
                 dc.owner = owner;
-                snprintf(dc.call.addcall.path, sizeof(dc.call.addcall.path), "/A%d/%s", owner, appAtual->syscall.call.addcall.path);
+                snprintf(dc.call.addcall.path, sizeof(dc.call.addcall.path), "%s", appAtual->syscall.call.addcall.path);
                 dc.call.addcall.len1 = appAtual->syscall.call.addcall.len1;
                 snprintf(dc.call.addcall.dirname, sizeof(dc.call.addcall.dirname), "%s", appAtual->syscall.call.addcall.dirname);
                 dc.call.addcall.len2 = appAtual->syscall.call.addcall.len2;
@@ -340,7 +340,7 @@ int main()
                 CallRequest dr;
                 dr.tipo_syscall = 3;
                 dr.owner = owner;
-                snprintf(dr.call.remcall.path, sizeof(dr.call.remcall.path), "/A%d/%s", owner, appAtual->syscall.call.remcall.path);
+                snprintf(dr.call.remcall.path, sizeof(dr.call.remcall.path), "%s", appAtual->syscall.call.remcall.path);
                 dr.call.remcall.len1 = appAtual->syscall.call.remcall.len1;
                 snprintf(dr.call.remcall.name, sizeof(dr.call.remcall.name), "%s", appAtual->syscall.call.remcall.name);
                 dr.call.remcall.len2 = appAtual->syscall.call.remcall.len2;
@@ -359,7 +359,7 @@ int main()
                 CallRequest dl;
                 dl.tipo_syscall = 4;
                 dl.owner = owner;
-                snprintf(dl.call.listdircall.path, sizeof(dl.call.listdircall.path), "/A%d/%s", owner, appAtual->syscall.call.listdircall.path);
+                snprintf(dl.call.listdircall.path, sizeof(dl.call.listdircall.path), "%s", appAtual->syscall.call.listdircall.path);
                 dl.call.listdircall.len1 = appAtual->syscall.call.listdircall.len1;
                 // Simula a listagem do diretório
                 printf("Kernel: DL-REQ, %d, %s, %d\n",
