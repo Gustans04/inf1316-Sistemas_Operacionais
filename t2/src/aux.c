@@ -379,6 +379,33 @@ void error(char *msg)
     exit(0);
 }
 
+void imprimir_lista_diretorio(ListDirCall *dl)
+{
+    for (int i = 0; i < dl->nrnames; i++)
+    {
+        int start = dl->fstlstpositions[i].start;
+        int end = dl->fstlstpositions[i].end;
+        int len = end - start + 1;
+
+        char nome[256];
+        if (len >= 256)
+            len = 255;
+        strncpy(nome, dl->alldirinfo + start, len);
+        nome[len] = '\0';
+
+        if (dl->fstlstpositions[i].type == 2)
+        {
+            // diretório: /nome
+            printf("/%s\n", nome);
+        }
+        else
+        {
+            // arquivo: .nome
+            printf(".%s\n", nome);
+        }
+    }
+}
+
 void iniciaUdpClient(void)
 {
     struct hostent *server;
@@ -417,7 +444,7 @@ void enviaUdpRequest(CallRequest request)
 
     /* send the message to the server */
     serverlen = sizeof(serveraddr);
-    n = sendto(sockfd, buf, sizeof(CallRequest), 0, (struct sockaddr *) &serveraddr, serverlen);
+    n = sendto(sockfd, buf, sizeof(CallRequest), 0, (struct sockaddr *)&serveraddr, serverlen);
 
     if (n < 0)
         error("ERROR in sendto");
@@ -439,7 +466,7 @@ CallRequest recebeUdpResponse(void)
     /* receive the server's reply */
     serverlen = sizeof(serveraddr);
     bzero(buf, buflen);
-    n = recvfrom(sockfd, buf, sizeof(CallRequest), MSG_DONTWAIT, (struct sockaddr *) &serveraddr, &serverlen);
+    n = recvfrom(sockfd, buf, sizeof(CallRequest), MSG_DONTWAIT, (struct sockaddr *)&serveraddr, &serverlen);
     if (n < 0)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -547,30 +574,35 @@ char **split_string(const char *str, const char *delim)
     return result;
 }
 
-char* escape(char* buffer){
-    int i,j;
+char *escape(char *buffer)
+{
+    int i, j;
     int l = strlen(buffer) + 1;
-    char esc_char[]= { '\a','\b','\f','\n','\r','\t','\v','\\'};
-    char essc_str[]= {  'a', 'b', 'f', 'n', 'r', 't', 'v','\\'};
-  char* dest  =  (char*)calloc( l*2,sizeof(char));
-    char* ptr=dest;
-    for(i=0;i<l;i++){
-        for(j=0; j< 8 ;j++){
-            if( buffer[i]==esc_char[j] ){
-              *ptr++ = '\\';
-              *ptr++ = essc_str[j];
-                 break;
+    char esc_char[] = {'\a', '\b', '\f', '\n', '\r', '\t', '\v', '\\'};
+    char essc_str[] = {'a', 'b', 'f', 'n', 'r', 't', 'v', '\\'};
+    char *dest = (char *)calloc(l * 2, sizeof(char));
+    char *ptr = dest;
+    for (i = 0; i < l; i++)
+    {
+        for (j = 0; j < 8; j++)
+        {
+            if (buffer[i] == esc_char[j])
+            {
+                *ptr++ = '\\';
+                *ptr++ = essc_str[j];
+                break;
             }
         }
-        if(j == 8 )
-      *ptr++ = buffer[i];
+        if (j == 8)
+            *ptr++ = buffer[i];
     }
-  *ptr='\0';
+    *ptr = '\0';
     return dest;
 }
 
-void respostaParaApp (InfoProcesso *app, CallRequest resposta) {
-    app->syscall.novo = 1;
+void respostaParaApp(InfoProcesso *app, CallRequest resposta)
+{
+    app->syscall.lido = 1;
     switch (resposta.tipo_syscall)
     {
     case 0: // WriteCall

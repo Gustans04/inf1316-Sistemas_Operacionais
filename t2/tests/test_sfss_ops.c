@@ -187,9 +187,16 @@ void test_list_dir_operation()
         if (strcmp(tempName, "MeusDocs") == 0 && listagem_idx[i].type == 2)
             found_dir = 1;
 
-        // Debug visual (opcional)
-        // printf("     - [%s] (Tipo: %s)\n", tempName, (listagem_idx[i].type == 2 ? "DIR" : "ARQ"));
+        
     }
+
+    // Cria a struct temporária só para imprimir
+    ListDirCall temp_list;
+    memcpy(temp_list.alldirinfo, listagem_nomes, 1024);
+    memcpy(temp_list.fstlstpositions, listagem_idx, sizeof(listagem_idx));
+    temp_list.nrnames = count;
+
+    imprimir_lista_diretorio(&temp_list);
 
     if (!found_file || !found_dir)
     {

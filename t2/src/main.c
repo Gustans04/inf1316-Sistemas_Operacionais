@@ -112,6 +112,7 @@ int main()
             shm_processos[i].pc = 0;
             shm_processos[i].estado = PRONTO;
             shm_processos[i].syscall.novo = 0;
+            shm_processos[i].syscall.lido = 0;
             shm_processos[i].syscall.tipo_syscall = -1;
             shm_processos[i].executando = 1;
             sem_unlock();

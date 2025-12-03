@@ -95,7 +95,7 @@ run-all: all
 test: directories
 	@echo "Compilando testes..."
 	# Compila o teste SFSS
-	$(CC) $(CFLAGS) $(TESTDIR)/test_sfss_ops.c sfss_ops.c -o $(BINDIR)/test_sfss
+	$(CC) $(CFLAGS) $(TESTDIR)/test_sfss_ops.c sfss_ops.c aux.c -o $(BINDIR)/test_sfss	
 	# Compila o teste InterController
 	$(CC) $(CFLAGS) $(TESTDIR)/test_intercontroller.c aux.c -o $(BINDIR)/test_intercontroller
 	# Compila o teste Main

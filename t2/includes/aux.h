@@ -109,6 +109,7 @@ typedef struct
 typedef struct
 {
     int novo;         // Indica se há uma nova syscall a ser processada: 0 - não, 1 - sim
+    int lido;         // Indica se há uma resposta para ser lida pela aplicação: 0 - não, 1 - sim
     int tipo_syscall; // Tipo da syscall: 0 - WriteCall, 1 - ReadCall, 2 - AddCall, 3 - RemCall, 4 - ListDirCall, -1 - Nenhuma syscall
     union
     {
@@ -174,6 +175,8 @@ int estaVaziaRequests(FilaRequests *fila);
 int removerDaFilaRequests(FilaRequests *fila);
 
 void error(char *msg);
+
+void imprimir_lista_diretorio(ListDirCall *dl);
 
 // Udp Client function
 void iniciaUdpClient(void);
