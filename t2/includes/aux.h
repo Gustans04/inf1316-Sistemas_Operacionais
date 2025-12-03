@@ -183,6 +183,7 @@ void encerraUdpClient(void);
 
 char **split_string(const char *str, const char *delim);
 void print_status(InfoProcesso *processos);
+char* escape(char* buffer);
 
 // Named semaphore functions for inter-process synchronization
 void init_sem(void);

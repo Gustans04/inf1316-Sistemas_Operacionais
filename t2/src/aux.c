@@ -254,11 +254,13 @@ void print_status(InfoProcesso *processos)
         {
         case 0:
             operacao_str = "WriteCall";
+            char *escaped_payload = escape(processos[i].syscall.call.writecall.payload);
             snprintf(param_str, sizeof(param_str), "(%s, %d, %s, %d)",
                      processos[i].syscall.call.writecall.path,
                      processos[i].syscall.call.writecall.len,
-                     processos[i].syscall.call.writecall.payload,
+                     escaped_payload,
                      processos[i].syscall.call.writecall.offset);
+            free(escaped_payload);
             break;
         case 1:
             operacao_str = "ReadCall";
@@ -322,7 +324,7 @@ void print_status(InfoProcesso *processos)
         case 0: // WriteCall
             parts = split_string(processos[i].syscall.call.writecall.path, "/");
 
-            snprintf(dir, sizeof(dir), "A%d/%s", i + 1, parts[0]);
+            snprintf(dir, sizeof(dir), "%s", parts[0]);
             strcpy(file, parts[1]);
             if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
                 aux = processos[i].syscall.call.writecall.offset + 16;
@@ -333,7 +335,7 @@ void print_status(InfoProcesso *processos)
         case 1: // ReadCall
             parts = split_string(processos[i].syscall.call.readcall.path, "/");
 
-            snprintf(dir, sizeof(dir), "A%d/%s", i + 1, parts[0]);
+            snprintf(dir, sizeof(dir), "%s", parts[0]);
             strcpy(file, parts[1]);
             if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
                 aux = processos[i].syscall.call.readcall.offset + 16;
@@ -342,18 +344,17 @@ void print_status(InfoProcesso *processos)
             sprintf(pos, "%d", aux);
             break;
         case 2: // AddCall
-            snprintf(dir, sizeof(dir), "A%d/%s/%s",
-                     i + 1,
+            snprintf(dir, sizeof(dir), "%s/%s",
                      processos[i].syscall.call.addcall.path,
                      processos[i].syscall.call.addcall.dirname);
             break;
         case 3: // RemCall
             parts = split_string(processos[i].syscall.call.remcall.path, "/");
 
-            snprintf(dir, sizeof(dir), "A%d/%s", i + 1, parts[0]);
+            snprintf(dir, sizeof(dir), "%s", parts[0]);
             break;
         case 4: // ListDirCall
-            snprintf(dir, sizeof(dir), "A%d/%s", i + 1, processos[i].syscall.call.listdircall.path);
+            snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.listdircall.path);
             break;
         }
 
@@ -544,4 +545,26 @@ char **split_string(const char *str, const char *delim)
     }
 
     return result;
+}
+
+char* escape(char* buffer){
+    int i,j;
+    int l = strlen(buffer) + 1;
+    char esc_char[]= { '\a','\b','\f','\n','\r','\t','\v','\\'};
+    char essc_str[]= {  'a', 'b', 'f', 'n', 'r', 't', 'v','\\'};
+  char* dest  =  (char*)calloc( l*2,sizeof(char));
+    char* ptr=dest;
+    for(i=0;i<l;i++){
+        for(j=0; j< 8 ;j++){
+            if( buffer[i]==esc_char[j] ){
+              *ptr++ = '\\';
+              *ptr++ = essc_str[j];
+                 break;
+            }
+        }
+        if(j == 8 )
+      *ptr++ = buffer[i];
+    }
+  *ptr='\0';
+    return dest;
 }
