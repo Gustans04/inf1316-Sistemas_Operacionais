@@ -180,6 +180,7 @@ void iniciaUdpClient(void);
 void enviaUdpRequest(CallRequest request);
 CallRequest recebeUdpResponse(void);
 void encerraUdpClient(void);
+void respostaParaApp(InfoProcesso *processos, CallRequest resposta);
 
 char **split_string(const char *str, const char *delim);
 void print_status(InfoProcesso *processos);
