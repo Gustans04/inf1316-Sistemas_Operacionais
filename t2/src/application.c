@@ -170,6 +170,7 @@ int main()
                 break;
             }
             printf("\n======================================\n", getpid(), my_id);
+            appAtual->syscall.lido == 0;
         }
 
         // Probabilidade de 15% para a realização de uma syscall
