@@ -103,68 +103,68 @@ int main()
             switch (appAtual->syscall.tipo_syscall)
             {
             case 0: // WriteCall
-                if (appAtual->syscall.call.writecall.offset < 0)
+                if (appAtual->syscall.resp.writeresp.offset < 0)
                 {
                     printf("Ocorreu um erro na WRITE!\n");
                 }
                 else
                 {
-                    printf("WRITE(%s, %s, %d) --> Sucesso!\n", appAtual->syscall.call.writecall.path,
-                           appAtual->syscall.call.writecall.payload,
-                           appAtual->syscall.call.writecall.offset);
+                    printf("WRITE(%s, %s, %d) --> Sucesso!\n", appAtual->syscall.resp.writeresp.path,
+                           appAtual->syscall.resp.writeresp.payload,
+                           appAtual->syscall.resp.writeresp.offset);
                 }
 
                 break;
 
             case 1: // ReadCall
-                if (appAtual->syscall.call.readcall.offset < 0)
+                if (appAtual->syscall.resp.readresp.offset < 0)
                 {
                     printf("Ocorreu um erro na READ!\n");
                 }
                 else
                 {
-                    printf("READ(%s, %d) --> %s!\n", appAtual->syscall.call.readcall.path,
-                           appAtual->syscall.call.readcall.offset,
-                           appAtual->syscall.call.readcall.buffer);
+                    printf("READ(%s, %d) --> %s!\n", appAtual->syscall.resp.readresp.path,
+                           appAtual->syscall.resp.readresp.offset,
+                           appAtual->syscall.resp.readresp.buffer);
                 }
 
                 break;
 
             case 2: // AddCall
-                if (appAtual->syscall.call.addcall.len1 < 0)
+                if (appAtual->syscall.resp.addresp.len1 < 0)
                 {
                     printf("Ocorreu um erro na ADD!\n");
                 }
                 else
                 {
-                    printf("ADD(%s, %s) --> Sucesso!\n", appAtual->syscall.call.addcall.path,
-                           appAtual->syscall.call.addcall.dirname);
+                    printf("ADD(%s, %s) --> Sucesso!\n", appAtual->syscall.resp.addresp.path,
+                           appAtual->syscall.resp.addresp.dirname);
                 }
 
                 break;
 
             case 3: // RemCall
-                if (appAtual->syscall.call.remcall.len1 < 0)
+                if (appAtual->syscall.resp.remresp.len1 < 0)
                 {
                     printf("Ocorreu um erro na REMOVE!\n");
                 }
                 else
                 {
-                    printf("REM(%s, %s) --> Sucesso!\n", appAtual->syscall.call.remcall.path,
-                           appAtual->syscall.call.remcall.name);
+                    printf("REM(%s, %s) --> Sucesso!\n", appAtual->syscall.resp.remresp.path,
+                           appAtual->syscall.resp.remresp.name);
                 }
 
                 break;
 
             case 4: // ListDirCall
-                if (appAtual->syscall.call.listdircall.nrnames < 0)
+                if (appAtual->syscall.resp.listdirresp.nrnames < 0)
                 {
                     printf("Ocorreu um erro na LIST DIR!\n");
                 }
                 else
                 {
-                    printf("LIST(%s) --> Sucesso!\n", appAtual->syscall.call.listdircall.path);
-                    imprimir_lista_diretorio(&(appAtual->syscall.call.listdircall));
+                    printf("LIST(%s) --> Sucesso!\n", appAtual->syscall.resp.listdirresp.path);
+                    imprimir_lista_diretorio(&(appAtual->syscall.resp.listdirresp));
                 }
 
                 break;

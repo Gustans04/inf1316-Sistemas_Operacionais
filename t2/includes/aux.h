@@ -119,6 +119,14 @@ typedef struct
         RemCall remcall;
         ListDirCall listdircall;
     } call;
+    union
+    {
+        WriteCall writeresp;
+        ReadCall readresp;
+        AddCall addresp;
+        RemCall remresp;
+        ListDirCall listdirresp;
+    } resp;
 } SysCallInfo;
 
 typedef struct
