@@ -568,3 +568,30 @@ char* escape(char* buffer){
   *ptr='\0';
     return dest;
 }
+
+void respostaParaApp (InfoProcesso *app, CallRequest resposta) {
+    app->syscall.novo = 1;
+    switch (resposta.tipo_syscall)
+    {
+    case 0: // WriteCall
+        app->syscall.tipo_syscall = 0;
+        app->syscall.call.writecall = resposta.call.writecall;
+        break;
+    case 1: // ReadCall
+        app->syscall.tipo_syscall = 1;
+        app->syscall.call.readcall = resposta.call.readcall;
+        break;
+    case 2: // AddCall
+        app->syscall.tipo_syscall = 2;
+        app->syscall.call.addcall = resposta.call.addcall;
+        break;
+    case 3: // RemCall
+        app->syscall.tipo_syscall = 3;
+        app->syscall.call.remcall = resposta.call.remcall;
+        break;
+    case 4: // ListDirCall
+        app->syscall.tipo_syscall = 4;
+        app->syscall.call.listdircall = resposta.call.listdircall;
+        break;
+    }
+}

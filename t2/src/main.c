@@ -451,6 +451,7 @@ int main()
         {
             printf("Kernel: recebeu resposta UDP para o processo %d\n", response.owner);
             sem_lock();
+            respostaParaApp(&shm_processos[response.owner - 1], response);
             if (response.tipo_syscall == 0 || response.tipo_syscall == 1)
                 inserirNaFilaRequests(filaFiles, response);
             else if (response.tipo_syscall == 2 || response.tipo_syscall == 3 || response.tipo_syscall == 4)
