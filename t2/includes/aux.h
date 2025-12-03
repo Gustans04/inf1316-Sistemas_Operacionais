@@ -186,7 +186,7 @@ void encerraUdpClient(void);
 void respostaParaApp(InfoProcesso *processos, CallRequest resposta);
 
 char **split_string(const char *str, const char *delim);
-void print_status(InfoProcesso *processos);
+void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50]);
 char* escape(char* buffer);
 
 // Named semaphore functions for inter-process synchronization

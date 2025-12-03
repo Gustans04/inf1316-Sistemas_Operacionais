@@ -212,7 +212,7 @@ void removerPidDaFila(FilaApps *fila, pid_t pid)
     fila->fim = (fila->fim - 1 + NUM_APP) % NUM_APP; // Garante que o fim seja positivo
 }
 
-void print_status(InfoProcesso *processos)
+void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
 {
     printf("=== Tabela de Status dos Processos ===\n");
     printf("%-7s %-4s %-12s %-14s %-80s %-12s\n",
@@ -368,6 +368,32 @@ void print_status(InfoProcesso *processos)
         printf("%-50s ", dir);
         printf("%-35s ", file);
         printf("%-15s\n", pos);
+    }
+    printf("------------------------------------------------------------------------------------------------------------------------------\n\n"); // Linha divisória
+
+    printf("=== Arquivos Abertos por Aplicação ===\n");
+    printf("%-7s %-50s\n",
+           "PID", "Arquivos Abertos");
+    printf("------------------------------------------------------------------------------------------------------------------------------\n"); // Linha divisória
+    for (int i = 0; i < NUM_APP; i++)
+    {
+        printf("%-7d ", processos[i].pid);
+        if (listaFiles[i][0] == NULL || strlen(listaFiles[i][0]) == 0)
+        {
+            printf("-\n");
+        }
+        else
+        {
+            for (int j = 0; j < 50; j++)
+            {
+                if (listaFiles[i][j] == NULL || strlen(listaFiles[i][j]) == 0)
+                    break;
+                if (j == 0)
+                    printf("%-50s\n", listaFiles[i][j]);
+                else
+                    printf("%-7s %-50s\n", "", listaFiles[i][j]);
+            }
+        }
     }
     printf("------------------------------------------------------------------------------------------------------------------------------\n\n"); // Linha divisória
     sem_unlock();

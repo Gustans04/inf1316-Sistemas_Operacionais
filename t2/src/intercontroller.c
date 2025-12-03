@@ -17,7 +17,6 @@ static InfoProcesso processos[NUM_APP];
 
 void ctrlC_handler(int signum);
 void finalizar(int signum);
-void read_process_info(void);
 
 sig_atomic_t rodando = 1;
 
@@ -70,20 +69,6 @@ void finalizar(int signum)
 
 void ctrlC_handler(int signum) {
     (void)signum; // remove warning
-    printf("\n=== InterController PAUSADO ===\n");
-    read_process_info();
-    print_status(processos);
-
-    // Para todos os processos
-    for (int i = 0; i < NUM_APP; i++) {
-        if (processos[i].estado != TERMINADO)
-        {
-            if (kill(processos[i].pid, SIGSTOP) == -1) {
-                perror("Falha ao enviar sinal SIGSTOP");
-                exit(EXIT_FAILURE);
-            }
-        }
-    }
 
     kill(getpid(), SIGSTOP); // Pausa o InterController até receber SIGCONT
 
@@ -101,30 +86,4 @@ void ctrlC_handler(int signum) {
 
     // Re-registra o handler de SIGINT
     signal(SIGINT, ctrlC_handler);
-}
-
-void read_process_info(void) {
-    // aloca a memória compartilhada
-    int segmento = shmget (IPC_CODE, sizeof (processos), IPC_CREAT | S_IRUSR | S_IWUSR);
-    if (segmento == -1) {
-        perror("shmget falhou");
-        exit(EXIT_FAILURE);
-    }
-
-    // conecta a memória compartilhada
-    InfoProcesso* shm_processos = (InfoProcesso*) shmat (segmento, 0, 0);
-    if (shm_processos == (InfoProcesso*) -1) {
-        perror("shmat falhou");
-        exit(EXIT_FAILURE);
-    }
-
-    sem_lock();
-    // copia os dados da memória compartilhada para o array local
-    for (int i = 0; i < NUM_APP; i++) {
-        processos[i] = shm_processos[i];
-    }
-    sem_unlock();
-
-    // desconecta a memória compartilhada
-    shmdt(shm_processos);
 }

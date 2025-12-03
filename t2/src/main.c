@@ -13,9 +13,17 @@
 
 #include "aux.h"
 
+
+void ctrlC_handler(int signum);
+
+// Lista para armazenar arquivos lidos por cada aplicação
+char* listaFiles[NUM_APP][50]; // Each app can have up to 50 files
+int numFiles[NUM_APP] = {0}; // Track number of files for each app
+InfoProcesso *shm_processos;
+
 int main()
 {
-    signal(SIGINT, SIG_IGN);
+    signal(SIGINT, ctrlC_handler);
     pid_t pid_list[NUM_APP];
     pid_t inter_pid;
 
@@ -33,6 +41,15 @@ int main()
     inicializarFila(prontos);
     inicializarFilaRequests(filaFiles);
     inicializarFilaRequests(filaDirs);
+    
+    // Initialize listaFiles array
+    for (int i = 0; i < NUM_APP; i++) {
+        for (int j = 0; j < 50; j++) {
+            listaFiles[i][j] = NULL;
+        }
+        numFiles[i] = 0;
+    }
+    
     iniciaUdpClient();
 
     // Aloca a memória compartilhada
@@ -44,7 +61,7 @@ int main()
     }
 
     // Conecta a memória compartilhada
-    InfoProcesso *shm_processos = (InfoProcesso *)shmat(segmento, 0, 0);
+    shm_processos = (InfoProcesso *)shmat(segmento, 0, 0);
     if (shm_processos == (InfoProcesso *)-1)
     {
         perror("shmat falhou");
@@ -453,8 +470,45 @@ int main()
             printf("Kernel: recebeu resposta UDP para o processo %d\n", response.owner);
             sem_lock();
             respostaParaApp(&shm_processos[response.owner - 1], response);
-            if (response.tipo_syscall == 0 || response.tipo_syscall == 1)
+            if (response.tipo_syscall == 0 || response.tipo_syscall == 1) {
+                if (response.tipo_syscall == 0 && response.call.writecall.offset >= 0 ) {
+                    // Armazena o nome do arquivo na listaFiles
+                    int app_idx = response.owner - 1;
+                    if (app_idx >= 0 && app_idx < NUM_APP && numFiles[app_idx] < 50) {
+                        int file_idx = numFiles[app_idx];
+                        char** parts = split_string(response.call.writecall.path, "/");
+                        listaFiles[app_idx][file_idx] = malloc(strlen(parts[1]) + 1);
+                        if (listaFiles[app_idx][file_idx] != NULL) {
+                            strcpy(listaFiles[app_idx][file_idx], parts[1]);
+                            numFiles[app_idx]++;
+                            printf("Kernel: Armazenado arquivo %d para o processo %d: %s\n", 
+                                   file_idx, response.owner, listaFiles[app_idx][file_idx]);
+                        }
+                        free(parts[0]);
+                        free(parts[1]);
+                        free(parts);
+                    }
+                }
+                if (response.tipo_syscall == 1 && response.call.readcall.offset >= 0 ) {
+                    // Armazena o nome do arquivo na listaFiles
+                    int app_idx = response.owner - 1;
+                    if (app_idx >= 0 && app_idx < NUM_APP && numFiles[app_idx] < 50) {
+                        int file_idx = numFiles[app_idx];
+                        char** parts = split_string(response.call.readcall.path, "/");
+                        listaFiles[app_idx][file_idx] = malloc(strlen(parts[1]) + 1);
+                        if (listaFiles[app_idx][file_idx] != NULL) {
+                            strcpy(listaFiles[app_idx][file_idx], parts[1]);
+                            numFiles[app_idx]++;
+                            printf("Kernel: Armazenado arquivo %d para o processo %d: %s\n", 
+                                   file_idx, response.owner, listaFiles[app_idx][file_idx]);
+                        }
+                        free(parts[0]);
+                        free(parts[1]);
+                        free(parts);
+                    }
+                }
                 inserirNaFilaRequests(filaFiles, response);
+            }
             else if (response.tipo_syscall == 2 || response.tipo_syscall == 3 || response.tipo_syscall == 4)
                 inserirNaFilaRequests(filaDirs, response);
             sem_unlock();
@@ -474,7 +528,18 @@ int main()
     printf("Kernel terminou sua execução\n");
 
     printf("\n=== Tabela Final dos Processos ===\n");
-    print_status(shm_processos);
+    print_status(shm_processos, listaFiles);
+
+    // Cleanup listaFiles memory
+    for (int i = 0; i < NUM_APP; i++) {
+        for (int j = 0; j < numFiles[i]; j++) {
+            if (listaFiles[i][j] != NULL) {
+                free(listaFiles[i][j]);
+                listaFiles[i][j] = NULL;
+            }
+        }
+        numFiles[i] = 0;
+    }
 
     shmdt(shm_processos);
     close(fifo_irq);
@@ -484,4 +549,24 @@ int main()
     cleanup_sem();
 
     return 0;
+}
+
+void ctrlC_handler(int signum) {
+    (void)signum; // remove warning
+    printf("\n=== InterController PAUSADO ===\n");
+    print_status(shm_processos, listaFiles);
+
+    // Para todos os processos
+    for (int i = 0; i < NUM_APP; i++) {
+        if (shm_processos[i].estado != TERMINADO)
+        {
+            if (kill(shm_processos[i].pid, SIGSTOP) == -1) {
+                perror("Falha ao enviar sinal SIGSTOP");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    // Re-registra o handler de SIGINT
+    signal(SIGINT, ctrlC_handler);
 }
