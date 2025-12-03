@@ -134,6 +134,8 @@ typedef struct
     pid_t pid;
     int pc;
     EstadoProcesso estado;
+    char pathAtual[MAX_NAME_LEN];
+    int offsetAtual;
     SysCallInfo syscall;
     int executando;
 } InfoProcesso;

@@ -132,6 +132,9 @@ int main()
             shm_processos[i].syscall.lido = 0;
             shm_processos[i].syscall.tipo_syscall = -1;
             shm_processos[i].executando = 1;
+            memset(shm_processos[i].pathAtual, 0, sizeof(shm_processos[i].pathAtual));
+            strcpy(shm_processos[i].pathAtual, "-");
+            shm_processos[i].offsetAtual = -1;
             sem_unlock();
         }
     }

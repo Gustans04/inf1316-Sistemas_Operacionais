@@ -42,6 +42,8 @@ Mantém informações de contexto de cada processo:
 - pid_t pid: identificador do processo
 - int pc: program counter
 - EstadoProcesso estado: estado atual (PRONTO, EXECUTANDO, ESPERANDO, BLOQUEADO, TERMINADO)
+- char pathAtual[MAX_NAME_LEN]: caminho atual do processo no sistema de arquivos (256 caracteres)
+- int offsetAtual: offset atual para operações de leitura/escrita no arquivo
 - SysCallInfo syscall: estrutura para armazenar dados das syscalls
 - int executando: flag indicando se o processo está em execução
 
@@ -51,6 +53,7 @@ Estrutura para gerenciar syscalls dos processos:
 - int lido: indica se há uma resposta para ser lida pela aplicação (0=não, 1=sim)
 - int tipo_syscall: tipo da syscall (0=WriteCall, 1=ReadCall, 2=AddCall, 3=RemCall, 4=ListDirCall, -1=nenhuma)
 - union call: união contendo dados específicos de cada tipo de syscall
+- union resp: união contendo dados específicos da resposta de cada tipo de syscall
 
 2.2.3 Estruturas de Syscalls
 
@@ -462,6 +465,7 @@ A primeira tabela apresenta informações completas sobre cada processo de aplic
 - **OPERAÇÃO**: Última syscall realizada pelo processo
 - **PARAMETROS**: Parâmetros específicos da syscall, incluindo paths, offsets e dados
 - **RESPONDIDO**: Indica se a operação recebeu resposta do SFSS Server
+- **ERRO**: Indica se a operação resultou em erro (OK ou ERRO)
 
 10.2 Posições em Arquivos
 
@@ -469,6 +473,9 @@ A segunda tabela rastreia as posições correntes de cada processo nos arquivos:
 - **Diretório Atual**: Diretório onde o processo está operando
 - **Arquivo Atual**: Nome do arquivo sendo manipulado
 - **Posição Atual**: Offset no arquivo (posição do próximo byte a ser lido/escrito)
+
+**Em caso de múltiplos arquivos abertos, o sistema mantém o último arquivo acessado e sua posição.**
+**Em caso de erro na última operação, o arquivo e posição permanecem inalterados.**
 
 10.3 Arquivos Abertos por Aplicação
 
@@ -478,33 +485,33 @@ Exemplo de saída do sistema:
 
 === Tabela Final dos Processos ===
 === Tabela de Status dos Processos ===
-PID     PC   ESTADO       OPERAÇÃO     PARAMETROS                                                                       RESPONDIDO  
+PID     PC   ESTADO       OPERAÇÃO     PARAMETROS                                                             RESPONDIDO   ERRO        
 ------------------------------------------------------------------------------------------------------------------------------
-13403   5    TERMINADO    AddCall      (/A0/foto, 8, foto, 4)                                                           SIM         
-13404   5    TERMINADO    AddCall      (/A2/banana, 10, banana, 6)                                                      SIM         
-13405   5    TERMINADO    WriteCall    (/A3/trabalho.txt, 16, , 48)                                                     SIM         
-13406   5    TERMINADO    ReadCall     (/A0/projeto.txt, -1, &buffer, -1)                                               SIM         
-13407   5    TERMINADO    RemCall      (/A0, -1, rato, 4)                                                               SIM         
+27748   5    TERMINADO    RemCall      (/A1, 3, backup, 6)                                                    SIM          ERRO        
+27749   5    TERMINADO    WriteCall    (/A2/banana.txt, 14, DADO-A2-0687\n, 80)                               SIM          OK          
+27750   5    TERMINADO    ReadCall     (/A3/trabalho.txt, 16, &buffer, 64)                                    SIM          ERRO        
+27751   5    TERMINADO    AddCall      (/A4, 3, trabalho, 8)                                                  SIM          OK          
+27752   5    TERMINADO    WriteCall    (/A5/foto.txt, 12, DADO-A5-0936\n, 80)                                 SIM          OK          
 ------------------------------------------------------------------------------------------------------------------------------
 
 === Posições em Arquivos ===
 PID     Diretório Atual                                   Arquivo Atual                       Posição Atual
 ------------------------------------------------------------------------------------------------------------------------------
-13403   /A0/foto                                           -                                   -              
-13404   /A2/banana                                         -                                   -              
-13405   /A3                                                trabalho.txt                        64             
-13406   /A0                                                projeto.txt                         15             
-13407   -                                                  -                                   -              
+27748   /A1                                                -                                   -              
+27749   /A2                                                banana.txt                          96             
+27750   /A3                                                backup.txt                          16             
+27751   /A4                                                -                                   -              
+27752   /A5                                                foto.txt                            96             
 ------------------------------------------------------------------------------------------------------------------------------
 
 === Arquivos Abertos por Aplicação ===
 PID     Arquivos Abertos                                  
 ------------------------------------------------------------------------------------------------------------------------------
-13403   relatorio.txt                                     
-13404   relatorio.txt                                     
-13405   trabalho.txt                                      
-13406   -
-13407   -
+27748   -
+27749   rato.txt            backup.txt          banana.txt      
+27750   backup.txt      
+27751   banana.txt      
+27752   cachorro.txt        foto.txt        
 ------------------------------------------------------------------------------------------------------------------------------
 
 10.4 Análise das Informações

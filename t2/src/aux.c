@@ -332,8 +332,12 @@ void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
                      processos[i].syscall.call.listdircall.path,
                      processos[i].syscall.call.listdircall.len1);
 
-            if (strcmp(executando_str, "SIM") == 0)
-                erro_str = "OK";
+            if (strcmp(executando_str, "SIM") == 0) { 
+                if(processos[i].syscall.resp.listdirresp.nrnames < 0)
+                    erro_str = "ERRO";
+                else
+                    erro_str = "OK";
+            }
             else
                 erro_str = "-";
             
@@ -363,67 +367,24 @@ void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
         char file[256] = "-";
         char pos[256] = "-";
         char **parts = NULL;
-        int aux = 0; // variável auxiliar para cálculos de posição
 
         printf("%-7d ", processos[i].pid);
 
-        switch (processos[i].syscall.tipo_syscall)
-        {
-        case 0: // WriteCall
-            parts = split_string(processos[i].syscall.call.writecall.path, "/");
-            if (parts && parts[0] && parts[1]) {
-                snprintf(dir, sizeof(dir), "%s", parts[0]);
-                strcpy(file, parts[1]);
-                if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
-                    aux = processos[i].syscall.call.writecall.offset + 16;
-                else
-                    aux = processos[i].syscall.call.writecall.offset;
-                sprintf(pos, "%d", aux);
+        parts = split_string(processos[i].pathAtual, "/");
+        if (parts && parts[0] && parts[1]) {
+            if (strlen(parts[0]) > 0) {
+                strncpy(dir, parts[0], sizeof(dir) - 1);
+                dir[sizeof(dir) - 1] = '\0';
+                strncpy(file, parts[1], sizeof(file) - 1);
+                file[sizeof(file) - 1] = '\0';
             }
             else {
-                snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.writecall.path);
+                strncpy(dir, processos[i].pathAtual, sizeof(dir) - 1);
+                dir[sizeof(dir) - 1] = '\0';
             }
-            break;
-        case 1: // ReadCall
-            parts = split_string(processos[i].syscall.call.readcall.path, "/");
-            if (parts && parts[0] && parts[1]) {
-                snprintf(dir, sizeof(dir), "%s", parts[0]);
-                strcpy(file, parts[1]);
-                if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
-                    aux = processos[i].syscall.call.readcall.offset + 16;
-                else
-                    aux = processos[i].syscall.call.readcall.offset;
-                sprintf(pos, "%d", aux);
-            }
-            else {
-                snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.readcall.path);
-            }
-            break;
-        case 2: // AddCall
-            snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.addcall.path);
-            strcpy(file, "-");
-            strcpy(pos, "-");
-            break;
-        case 3: // RemCall
-            parts = split_string(processos[i].syscall.call.remcall.path, "/");
-            if (parts && parts[0]) {
-                if (strlen(parts[0]) == 0 && parts[1]) snprintf(dir, sizeof(dir), "/%s", parts[1]);
-                else snprintf(dir, sizeof(dir), "%s", parts[0]);
-            }
-            else {
-                snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.remcall.path);
-            }
-            strcpy(file, "-");
-            strcpy(pos, "-");
-            break;
-        case 4: // ListDirCall
-            snprintf(dir, sizeof(dir), "%s", processos[i].syscall.call.listdircall.path);
-            strcpy(file, "-");
-            strcpy(pos, "-");
-            break;
-        default:
-            // For uninitialized or invalid syscalls, keep default "-" values
-            break;
+        }
+        if (processos[i].offsetAtual >= 0) {
+            snprintf(pos, sizeof(pos), "%d", processos[i].offsetAtual + 16);
         }
 
         if (parts)
@@ -703,22 +664,48 @@ void respostaParaApp(InfoProcesso *app, CallRequest resposta)
     case 0: // WriteCall
         app->syscall.tipo_syscall = 0;
         app->syscall.resp.writeresp = resposta.call.writecall;
+        if (app->syscall.resp.writeresp.offset >= 0) {
+            strncpy(app->pathAtual, app->syscall.call.writecall.path, sizeof(app->pathAtual) - 1);
+            app->pathAtual[sizeof(app->pathAtual) - 1] = '\0';
+            app->offsetAtual = app->syscall.resp.writeresp.offset;
+        }
         break;
     case 1: // ReadCall
         app->syscall.tipo_syscall = 1;
         app->syscall.resp.readresp = resposta.call.readcall;
+        if (app->syscall.resp.readresp.offset >= 0) {
+            strncpy(app->pathAtual, app->syscall.call.readcall.path, sizeof(app->pathAtual) - 1);
+            app->pathAtual[sizeof(app->pathAtual) - 1] = '\0';
+            app->offsetAtual = app->syscall.resp.readresp.offset;
+        }
         break;
     case 2: // AddCall
         app->syscall.tipo_syscall = 2;
         app->syscall.resp.addresp = resposta.call.addcall;
+        if (app->syscall.resp.addresp.len1 >= 0) {
+            strncpy(app->pathAtual, app->syscall.call.addcall.path, sizeof(app->pathAtual) - 1);
+            app->pathAtual[sizeof(app->pathAtual) - 1] = '\0';
+            app->offsetAtual = -1;
+        }
         break;
     case 3: // RemCall
         app->syscall.tipo_syscall = 3;
         app->syscall.resp.remresp = resposta.call.remcall;
+        if (app->syscall.resp.remresp.len1 >= 0) {
+            strncpy(app->pathAtual, app->syscall.call.remcall.path, sizeof(app->pathAtual) - 1);
+            app->pathAtual[sizeof(app->pathAtual) - 1] = '\0';
+            app->offsetAtual = -1;
+        }
         break;
     case 4: // ListDirCall
         app->syscall.tipo_syscall = 4;
         app->syscall.resp.listdirresp = resposta.call.listdircall;
+        if (app->syscall.resp.listdirresp.nrnames >= 0)
+        {
+            strncpy(app->pathAtual, app->syscall.call.listdircall.path, sizeof(app->pathAtual) - 1);
+            app->pathAtual[sizeof(app->pathAtual) - 1] = '\0';
+            app->offsetAtual = -1;
+        }
         break;
     }
 }
