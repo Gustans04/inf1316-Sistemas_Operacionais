@@ -215,8 +215,8 @@ void removerPidDaFila(FilaApps *fila, pid_t pid)
 void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
 {
     printf("=== Tabela de Status dos Processos ===\n");
-    printf("%-7s %-4s %-12s %-14s %-80s %-12s\n",
-           "PID", "PC", "ESTADO", "OPERAÇÃO", "PARAMETROS", "RESPONDIDO");
+    printf("%-7s %-4s %-12s %-14s %-70s %-12s %-12s\n",
+           "PID", "PC", "ESTADO", "OPERAÇÃO", "PARAMETROS", "RESPONDIDO", "ERRO");
     printf("------------------------------------------------------------------------------------------------------------------------------\n"); // Linha divisória
 
     sem_lock();
@@ -226,6 +226,7 @@ void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
         char *operacao_str = "-";
         char param_str[1024] = "-";
         char *executando_str;
+        char *erro_str;
         if (processos[i].estado == 0 || processos[i].estado == 1 || processos[i].estado == 4)
             executando_str = "SIM";
         else
@@ -261,6 +262,16 @@ void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
                      escaped_payload,
                      processos[i].syscall.call.writecall.offset);
             free(escaped_payload);
+
+            if (strcmp(executando_str, "SIM") == 0) { 
+                if(processos[i].syscall.resp.writeresp.offset < 0)
+                    erro_str = "ERRO";
+                else
+                    erro_str = "OK";
+            }
+            else
+                erro_str = "-";
+
             break;
         case 1:
             operacao_str = "ReadCall";
@@ -268,6 +279,16 @@ void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
                      processos[i].syscall.call.readcall.path,
                      processos[i].syscall.call.readcall.len,
                      processos[i].syscall.call.readcall.offset);
+
+            if (strcmp(executando_str, "SIM") == 0) { 
+                if(processos[i].syscall.resp.readresp.offset < 0)
+                    erro_str = "ERRO";
+                else
+                    erro_str = "OK";
+            }
+            else
+                erro_str = "-";
+
             break;
         case 2:
             operacao_str = "AddCall";
@@ -276,6 +297,16 @@ void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
                      processos[i].syscall.call.addcall.len1,
                      processos[i].syscall.call.addcall.dirname,
                      processos[i].syscall.call.addcall.len2);
+
+            if (strcmp(executando_str, "SIM") == 0) { 
+                if(processos[i].syscall.resp.addresp.len1 < 0)
+                    erro_str = "ERRO";
+                else
+                    erro_str = "OK";
+            }
+            else
+                erro_str = "-";
+
             break;
         case 3:
             operacao_str = "RemCall";
@@ -284,12 +315,28 @@ void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
                      processos[i].syscall.call.remcall.len1,
                      processos[i].syscall.call.remcall.name,
                      processos[i].syscall.call.remcall.len2);
+
+            if (strcmp(executando_str, "SIM") == 0) { 
+                if(processos[i].syscall.resp.remresp.len1 < 0)
+                    erro_str = "ERRO";
+                else
+                    erro_str = "OK";
+            }
+            else
+                erro_str = "-";
+
             break;
         case 4:
             operacao_str = "ListDirCall";
             snprintf(param_str, sizeof(param_str), "(%s, %d, alldirinfo, fstlstpositions, &nrnames)",
                      processos[i].syscall.call.listdircall.path,
                      processos[i].syscall.call.listdircall.len1);
+
+            if (strcmp(executando_str, "SIM") == 0)
+                erro_str = "OK";
+            else
+                erro_str = "-";
+            
             break;
         }
 
@@ -297,8 +344,9 @@ void print_status(InfoProcesso *processos, char *listaFiles[NUM_APP][50])
         printf("%-4d ", processos[i].pc);
         printf("%-12s ", estado_str);
         printf("%-12s ", operacao_str);
-        printf("%-80s ", param_str);
-        printf("%-12s\n", executando_str);
+        printf("%-70s ", param_str);
+        printf("%-12s ", executando_str);
+        printf("%-12s\n", erro_str);
     }
     sem_unlock();
 
