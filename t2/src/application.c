@@ -169,8 +169,8 @@ int main()
 
                 break;
             }
-            printf("\n======================================\n", getpid(), my_id);
-            appAtual->syscall.lido == 0;
+            printf("\n======================================\n");
+            appAtual->syscall.lido = 0;
         }
 
         // Probabilidade de 15% para a realização de uma syscall
@@ -194,7 +194,6 @@ int main()
             appAtual->syscall.novo = 1; // Indica que há uma nova syscall a ser processada
 
             // Variáveis auxiliares para construção dos caminhos
-            char file_name[50];
             char dir_name[50];
             char full_path[128];
 
