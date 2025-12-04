@@ -119,7 +119,7 @@ test: directories
 # Roda apenas o teste do SFSS
 test-sfss: directories
 	@echo "Compilando teste SFSS..."
-	$(CC) $(CFLAGS) $(TESTDIR)/test_sfss_ops.c sfss_ops.c -o $(BINDIR)/test_sfss
+	$(CC) $(CFLAGS) $(TESTDIR)/test_sfss_ops.c sfss_ops.c aux.c -o $(BINDIR)/test_sfss
 	@echo "Rodando teste SFSS..."
 	cd $(TESTDIR) && ../bin/test_sfss
 
