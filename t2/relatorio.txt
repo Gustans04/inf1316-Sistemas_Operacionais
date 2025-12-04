@@ -353,13 +353,23 @@ Testam o funcionamento do micro-kernel:
 - Teste de syscalls: Valida processamento e conversão de syscalls em requisições UDP
 - Teste de estados de processo: Verifica transições corretas entre estados
 
-8.4 Execução dos Testes
+8.4 Testes de Integração do Servidor (test_sfss_server.c)
+
+Verificam a comunicação completa Cliente-Servidor via protocolo UDP e a persistência de dados:
+- Teste de ciclo de vida: Gerencia a inicialização e encerramento do servidor real em background
+- Teste de protocolo SFP: Envia pacotes UDP reais e valida a estrutura das respostas recebidas
+- Teste de persistência física: Confirma se as operações remotas efetivamente criaram/alteraram arquivos no disco
+- Teste de fluxo assíncrono: Implementa timeouts para aguardar o processamento real do servidor
+- Teste de feature especial: Valida a lógica de remoção de arquivos através de escrita com payload vazio
+
+8.5 Execução dos Testes
 
 Os testes podem ser executados individualmente ou em conjunto:
 - `make test`: Executa todos os testes
 - `make test-sfss`: Executa apenas testes do sistema de arquivos
 - `make test-intercontroller`: Executa apenas testes do InterController
 - `make test-main`: Executa apenas testes do Kernel
+- `make test-server`: Executa apenas os testes de integração do Servidor
 
 Cada teste:
 - Configurar ambiente isolado para evitar interferências
