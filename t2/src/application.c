@@ -209,7 +209,8 @@ int main()
                 appAtual->syscall.call.writecall.len = strlen(full_path);
 
                 // Payload aleatório
-                snprintf(appAtual->syscall.call.writecall.payload, 16, "DADO-A%d-%04d\n", my_id, rand() % 1000);
+                snprintf(appAtual->syscall.call.writecall.payload, 16, "DADO-A%d-%04d    ", my_id, rand() % 1000);
+                
                 appAtual->syscall.call.writecall.offset = offset_aleatorio();
 
                 printf(" -> WRITE: %s (Path: %s) (Off: %d)\n", appAtual->syscall.call.writecall.payload, full_path, appAtual->syscall.call.writecall.offset);

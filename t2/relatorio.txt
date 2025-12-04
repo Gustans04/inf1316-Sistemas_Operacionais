@@ -563,6 +563,7 @@ Para testes específicos:
 Para controle durante execução:
 - CTRL-C: exibe status atual dos processos e arquivos, mas continua execução
 - kill -TERM: encerra o sistema graciosamente
+- kill -CONT <PID>: continua um processo que foi interrompido
 
 12. CONCLUSÃO
 -----------
